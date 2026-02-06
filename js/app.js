@@ -202,6 +202,55 @@ function updateNavigation(selectedItem) {
 }
 
 // ---------------------------------------------------------
+// REAL-TIME DATA FUNCTIONS
+// ---------------------------------------------------------
+
+async function updateCryptoPrices() {
+    try {
+        console.log('Fetching Crypto Prices...');
+        // IDs: bitcoin, ethereum, dogecoin, binancecoin
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
+        const data = await response.json();
+
+        // Update BTC
+        if (data.bitcoin) {
+            updateAssetData('BTC', data.bitcoin.usd, data.bitcoin.usd_24h_change);
+        }
+        // Update ETH (if added)
+        if (data.ethereum) {
+            updateAssetData('ETH', data.ethereum.usd, data.ethereum.usd_24h_change);
+        }
+
+        renderWatchlist();
+    } catch (e) {
+        console.error('Error fetching crypto:', e);
+    }
+}
+
+function updateAssetData(symbol, price, changePercent) {
+    const asset = mockWatchlist.find(a => a.symbol === symbol);
+    if (asset) {
+        // Format Price
+        asset.price = '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Format Change
+        const isUp = changePercent >= 0;
+        asset.isUp = isUp;
+        asset.change = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
+
+        // Update Status based on simple logic (just for demo visual)
+        // In real app, this comes from IndicatorService
+        if (Math.abs(changePercent) > 2) {
+            asset.status = isUp ? 'BUY' : 'SELL';
+            asset.conf = '80%'; // Mock confidence for now
+        } else {
+            asset.status = 'NEUTRAL';
+            asset.conf = '-';
+        }
+    }
+}
+
+// ---------------------------------------------------------
 // EVENT LISTENERS
 // ---------------------------------------------------------
 
@@ -261,21 +310,33 @@ function setupEventListeners() {
 
             const newItem = {
                 symbol: symbol,
-                name: symbol,
-                price: '---',
-                change: '0.0%',
+                name: symbol, // In real app, fetch name
+                price: 'Loading...',
+                change: '...',
                 isUp: true,
                 mode: mode,
-                status: 'NEUTRAL',
+                status: 'WAIT',
                 conf: '-',
-                icon: 'fa-solid fa-chart-line'
+                icon: 'fa-solid fa-coins' // Default icon
             };
+
+            // Fix icon for known types
+            if (['BTC', 'ETH', 'DOGE'].includes(symbol)) newItem.icon = 'fa-brands fa-bitcoin';
+            if (['AAPL', 'TSLA', 'GOOGL'].includes(symbol)) newItem.icon = 'fa-brands fa-apple';
 
             mockWatchlist.push(newItem);
             renderWatchlist();
+
+            // Trigger fetch immediate if crypto
+            updateCryptoPrices();
 
             symbolInput.value = '';
             modal.classList.remove('show');
         });
     }
+
+    // Initial Fetch
+    updateCryptoPrices();
+    // Auto-refresh every 30 seconds
+    setInterval(updateCryptoPrices, 30000);
 }
