@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invest Alert | Smart Portfolio</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"><i class="fa-solid fa-chart-line"></i></div>
+                <span>InvestAlert</span>
+            </div>
+
+            <ul class="nav-links">
+                <li class="active nav-item" data-target="dashboard"><a href="#"><i class="fa-solid fa-house"></i>
+                        Dashboard</a></li>
+                <li class="nav-item" data-target="chart"><a href="#"><i class="fa-solid fa-chart-candlestick"></i>
+                        Chart</a></li>
+                <li class="nav-item" data-target="watchlist"><a href="#"><i class="fa-solid fa-list-check"></i>
+                        Watchlist</a></li>
+                <li class="nav-item" data-target="signals"><a href="#"><i class="fa-solid fa-bell"></i> Signals</a></li>
+                <li class="nav-item" data-target="reports"><a href="#"><i class="fa-solid fa-newspaper"></i> Reports</a>
+                </li>
+            </ul>
+
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff" alt="User">
+                <div class="user-info">
+                    <span class="name">Premium User</span>
+                    <span class="status">Basic Plan</span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1 id="pageTitle">Dashboard</h1>
+                <div class="header-actions">
+                    <button class="icon-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+                    <button class="icon-btn"><i class="fa-regular fa-bell"></i><span class="badge">2</span></button>
+                </div>
+            </header>
+
+            <!-- VIEW: DASHBOARD -->
+            <div id="view-dashboard" class="view-section active">
+                <!-- Daily Digest Card -->
+                <section class="digest-section">
+                    <div class="glass-card digest-card">
+                        <div class="card-content">
+                            <div class="text-content">
+                                <span class="label">Daily Digest • 08:00 AM</span>
+                                <h2>2 Strong Buy Signals</h2>
+                                <p>Opportunities detected in US Tech & Crypto sectors today.</p>
+                                <button class="primary-btn">View Detailed Report</button>
+                            </div>
+                            <div class="visual-content">
+                                <div class="signal-preview">
+                                    <div class="signal-item buy">
+                                        <i class="fa-brands fa-apple"></i>
+                                        <span>AAPL</span>
+                                        <span class="conf">95%</span>
+                                    </div>
+                                    <div class="signal-item buy">
+                                        <i class="fa-brands fa-bitcoin"></i>
+                                        <span>BTC</span>
+                                        <span class="conf">82%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Dashboard Grid -->
+                <div class="dashboard-grid">
+                    <!-- Market Overview -->
+                    <section class="market-section">
+                        <div class="section-header">
+                            <h3>Market Overview</h3>
+                        </div>
+                        <div class="market-cards">
+                            <div class="market-card up">
+                                <div class="market-info">
+                                    <span class="symbol">S&P 500</span>
+                                    <span class="price">4,950.25</span>
+                                </div>
+                                <span class="change">+1.2% <i class="fa-solid fa-arrow-trend-up"></i></span>
+                            </div>
+                            <div class="market-card up">
+                                <div class="market-info">
+                                    <span class="symbol">SET</span>
+                                    <span class="price">1,390.10</span>
+                                </div>
+                                <span class="change">+0.4% <i class="fa-solid fa-arrow-trend-up"></i></span>
+                            </div>
+                            <div class="market-card down">
+                                <div class="market-info">
+                                    <span class="symbol">Gold</span>
+                                    <span class="price">$2,025</span>
+                                </div>
+                                <span class="change">-0.3% <i class="fa-solid fa-arrow-trend-down"></i></span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- VIEW: CHART (TradingView) -->
+            <div id="view-chart" class="view-section" style="height: calc(100vh - 120px);">
+                <!-- TradingView Widget BEGIN -->
+                <div class="tradingview-widget-container" style="height:100%;width:100%">
+                    <div id="tradingview_Widget" style="height:calc(100% - 32px);width:100%"></div>
+                </div>
+                <!-- TradingView Widget END -->
+            </div>
+
+            <!-- VIEW: WATCHLIST (Moved here to be toggleable) -->
+            <div id="view-watchlist" class="view-section">
+                <section class="watchlist-section">
+                    <div class="section-header">
+                        <h3>Your Watchlist</h3>
+                        <button class="text-btn" id="addAssetBtn"><i class="fa-solid fa-plus"></i> Add Asset</button>
+                    </div>
+
+                    <div class="watchlist-grid" id="watchlistContainer">
+                        <!-- Items injected by JS -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- VIEW: SIGNALS (Placeholder) -->
+            <div id="view-signals" class="view-section">
+                <div class="glass-card">
+                    <h2>Signals & Alerts</h2>
+                    <p style="color: var(--text-muted); margin-top: 10px;">Your historical buy/sell signals will appear
+                        here.</p>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Add Asset Modal -->
+    <div id="addAssetModal" class="modal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h2>Add to Watchlist</h2>
+                <span class="close-btn">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Symbol / Ticker</label>
+                    <input type="text" id="assetSymbol" placeholder="e.g. GOOGL, CPALL" autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Mode</label>
+                    <div class="mode-options">
+                        <div class="mode-option selected" data-value="Technical">Technical</div>
+                        <div class="mode-option" data-value="Price">Price Alert</div>
+                    </div>
+                </div>
+                <button id="confirmAddBtn" class="primary-btn" style="width: 100%; margin-top: 1rem;">Add Asset</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>

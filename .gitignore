@@ -1,0 +1,44 @@
+# Node modules
+node_modules/
+functions/node_modules/
+
+# Firebase
+.firebase/
+.firebaserc
+
+# Environment variables (CRITICAL - DO NOT COMMIT)
+.env
+.env.local
+functions/.env
+.runtimeconfig.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build outputs
+dist/
+build/
+.cache/
+
+# Testing
+coverage/
+
+# Temporary files
+*.tmp
+.temp/
