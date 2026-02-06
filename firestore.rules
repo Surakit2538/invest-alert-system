@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ⚠️ Security Warning: This allows ANYONE to read/write.
+    // Suitable for prototyping ONLY. Secure this before production launch!
+    match /users/{userId}/watchlist/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

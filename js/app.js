@@ -171,6 +171,47 @@ function renderWatchlist() {
     `}).join('');
 
     container.innerHTML = html;
+
+    // Also update Dashboard "Daily Digest" card dynamically
+    updateDashboardDigest();
+}
+
+function updateDashboardDigest() {
+    // Find top 2 interesting assets (BUY/SELL)
+    const significantAssets = watchlistData.filter(a => a.status === 'BUY' || a.status === 'SELL').slice(0, 2);
+
+    // Default fallback if no signals
+    if (significantAssets.length === 0 && watchlistData.length > 0) {
+        significantAssets.push(watchlistData[0]);
+        if (watchlistData.length > 1) significantAssets.push(watchlistData[1]);
+    }
+
+    const digestTitle = document.querySelector('.digest-card h2');
+    const digestDesc = document.querySelector('.digest-card p');
+    const signalPreview = document.querySelector('.signal-preview');
+
+    if (digestTitle && significantAssets.length > 0) {
+        const count = significantAssets.length;
+        digestTitle.innerText = `${count} Active Signal${count > 1 ? 's' : ''}`;
+        digestDesc.innerText = `Opportunities detected in your watchlist.`;
+    }
+
+    if (signalPreview && significantAssets.length > 0) {
+        signalPreview.innerHTML = significantAssets.map(asset => {
+            // Re-use icon logic simple
+            let icon = 'fa-solid fa-chart-line';
+            if (['BTC', 'ETH', 'DOGE'].includes(asset.symbol)) icon = 'fa-brands fa-bitcoin';
+            if (['AAPL', 'TSLA', 'GOOGL'].includes(asset.symbol)) icon = 'fa-brands fa-apple';
+
+            return `
+            <div class="signal-item ${asset.status === 'BUY' ? 'buy' : 'sell'}">
+                <i class="${icon}"></i>
+                <span>${asset.symbol}</span>
+                <span class="conf">${asset.conf || '-'}</span>
+            </div>
+            `;
+        }).join('');
+    }
 }
 
 // ---------------------------------------------------------
