@@ -107,7 +107,7 @@ async function addAssetToDb(symbol, mode) {
         updateCryptoPrices();
     } catch (e) {
         console.error("Error adding asset:", e);
-        alert("Failed to save asset");
+        alert("Failed to save: " + e.message); // Show actual error
     }
 }
 
