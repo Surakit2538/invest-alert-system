@@ -374,9 +374,81 @@ function updateNavigation(selectedItem) {
 }
 
 // ---------------------------------------------------------
-// REAL-TIME DATA FUNCTIONS (Existing)
+// REAL-TIME DATA FUNCTIONS
 // ---------------------------------------------------------
-// ... (Keep existing updateCryptoPrices)
+
+async function updateCryptoPrices() {
+    try {
+        console.log('Fetching Prices...');
+        let changed = false;
+
+        // 1. Real Crypto Data (CoinGecko)
+        try {
+            const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
+            const data = await response.json();
+            if (data.bitcoin) changed |= updateAssetDataInMemory('BTC', data.bitcoin.usd, data.bitcoin.usd_24h_change);
+            if (data.ethereum) changed |= updateAssetDataInMemory('ETH', data.ethereum.usd, data.ethereum.usd_24h_change);
+        } catch (e) { console.warn('CoinGecko Error:', e); }
+
+        // 2. Real Stock Data via Cloud Function Proxy (Google Finance)
+        const stockAssets = watchlistData.filter(a => !['BTC', 'ETH'].includes(a.symbol));
+
+        for (const asset of stockAssets) {
+            if (!asset.lastUpdate || (Date.now() - asset.lastUpdate > 60000)) {
+                try {
+                    const projectId = firebaseConfig.projectId;
+                    const region = 'asia-southeast1';
+                    const url = `https://${region}-${projectId}.cloudfunctions.net/getStockPrice?symbol=${asset.symbol}`;
+
+                    const res = await fetch(url);
+                    const data = await res.json();
+
+                    if (data.price) {
+                        const currency = ['CPALL', 'PTT', 'AOT', 'KBANK', 'SCB', 'ADVANC'].includes(asset.symbol) ? '฿' : '$';
+                        asset.price = currency + data.price.toLocaleString();
+                        asset.change = data.change;
+
+                        const changeVal = parseFloat(data.change.replace('%', '').replace('+', ''));
+                        const isUp = changeVal >= 0;
+
+                        asset.isUp = isUp;
+                        asset.status = Math.abs(changeVal) > 1.5 ? (isUp ? 'BUY' : 'SELL') : 'NEUTRAL';
+                        asset.conf = asset.status !== 'NEUTRAL' ? 'Strong' : '-';
+
+                        asset.lastUpdate = Date.now();
+                        changed = true;
+                    }
+                } catch (e) {
+                    console.warn(`Failed to fetch ${asset.symbol}:`, e);
+                }
+            }
+        }
+
+        if (changed) renderWatchlist();
+    } catch (e) {
+        console.error('Error fetching prices:', e);
+    }
+}
+
+function updateAssetDataInMemory(symbol, price, changePercent) {
+    let found = false;
+    watchlistData.forEach(asset => {
+        if (asset.symbol === symbol) {
+            asset.price = '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const isUp = changePercent >= 0;
+            asset.isUp = isUp;
+            asset.change = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
+            if (Math.abs(changePercent) > 2) {
+                asset.status = isUp ? 'BUY' : 'SELL';
+                asset.conf = '80%';
+            } else {
+                asset.status = 'NEUTRAL';
+            }
+            found = true;
+        }
+    });
+    return found;
+}
 
 // ---------------------------------------------------------
 // EVENT LISTENERS
