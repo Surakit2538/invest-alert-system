@@ -4,7 +4,7 @@
 // ⚠️ REPLACE WITH YOUR FIREBASE CONFIG FROM CONSOLE
 // Go to Project Settings > General > Is your app not having a nickname? (Scroll down) > Add Web App
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY", // ⚠️ Paste API Key from Firebase Console
+    apiKey: "AIzaSyCjn54iA6saXD9r9e1gjTMUO7NpB9_-5tQ", // ⚠️ Paste API Key from Firebase Console
     authDomain: "invest-alert-game.firebaseapp.com",
     projectId: "invest-alert-game",
     storageBucket: "invest-alert-game.appspot.com",
