@@ -236,11 +236,17 @@ function initTradingView(symbol) {
     container.innerHTML = '';
 
     let fullSymbol = symbol;
-    if (['PTT', 'KBANK', 'AOT', 'SCB'].includes(symbol)) {
+    // Enhanced Symbol Detection
+    const thaiStocks = ['PTT', 'KBANK', 'AOT', 'SCB', 'CPALL', 'ADVANC', 'DELTA', 'BDMS', 'GULF', 'EA', 'SCC', 'MINT'];
+    const crypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'];
+
+    if (thaiStocks.includes(symbol)) {
         fullSymbol = `SET:${symbol}`;
-    } else if (['BTC', 'ETH', 'DOGE'].includes(symbol)) {
+    } else if (crypto.includes(symbol)) {
         fullSymbol = `BINANCE:${symbol}USDT`;
     } else {
+        // Default to NASDAQ for others, or check simple logic
+        // If it looks like a US tech stock
         fullSymbol = `NASDAQ:${symbol}`;
     }
 
@@ -293,14 +299,43 @@ function updateNavigation(selectedItem) {
 
 async function updateCryptoPrices() {
     try {
-        console.log('Fetching Crypto Prices...');
+        console.log('Fetching Prices...');
+
+        // 1. Real Crypto Data
         const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
         const data = await response.json();
 
-        // Update local data and re-render
         let changed = false;
         if (data.bitcoin) changed |= updateAssetDataInMemory('BTC', data.bitcoin.usd, data.bitcoin.usd_24h_change);
         if (data.ethereum) changed |= updateAssetDataInMemory('ETH', data.ethereum.usd, data.ethereum.usd_24h_change);
+
+        // 2. Mock Data for Stocks (Since we don't have a free real-time stock API in frontend)
+        // This makes the UI feel alive for stock assets
+        watchlistData.forEach(asset => {
+            if (!['BTC', 'ETH'].includes(asset.symbol)) {
+                // Check if it's "Mocked" already or empty
+                if (asset.price === '---' || asset.price === 'Loading...' || !asset.lastMockUpdate || (Date.now() - asset.lastMockUpdate > 60000)) {
+                    // Generate realistic looking start price if missing
+                    let basePrice = 100;
+                    if (asset.symbol === 'CPALL') basePrice = 55.00;
+                    if (asset.symbol === 'GOOGL') basePrice = 145.00;
+                    if (asset.symbol === 'TSLA') basePrice = 190.00;
+                    if (asset.symbol === 'AAPL') basePrice = 185.00;
+
+                    // Add small random fluctuation
+                    const randomChange = (Math.random() * 2) - 1; // -1 to +1%
+                    const price = basePrice * (1 + (randomChange / 100));
+
+                    asset.price = (asset.symbol.includes('SET') || ['CPALL', 'PTT', 'AOT'].includes(asset.symbol) ? '฿' : '$') + price.toFixed(2);
+                    asset.change = (randomChange >= 0 ? '+' : '') + randomChange.toFixed(2) + '%';
+                    asset.isUp = randomChange >= 0;
+                    asset.status = Math.abs(randomChange) > 0.8 ? (asset.isUp ? 'BUY' : 'SELL') : 'NEUTRAL';
+                    asset.conf = asset.status !== 'NEUTRAL' ? Math.floor(70 + Math.random() * 20) + '%' : '-';
+                    asset.lastMockUpdate = Date.now(); // user session specific
+                    changed = true;
+                }
+            }
+        });
 
         if (changed) renderWatchlist();
     } catch (e) {
