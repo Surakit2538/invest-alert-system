@@ -1,74 +1,126 @@
-// Mock Data with TradingView integration
-let mockWatchlist = [
-    {
-        symbol: 'AAPL',
-        name: 'Apple Inc.',
-        price: '185.92',
-        change: '+1.25%',
-        isUp: true,
-        mode: 'Technical',
-        status: 'BUY',
-        conf: '85%',
-        icon: 'fa-brands fa-apple'
-    },
-    {
-        symbol: 'BTC',
-        name: 'Bitcoin',
-        price: '$52,030',
-        change: '+3.4%',
-        isUp: true,
-        mode: 'Technical',
-        status: 'BUY',
-        conf: '82%',
-        icon: 'fa-brands fa-bitcoin'
-    },
-    {
-        symbol: 'TSLA',
-        name: 'Tesla',
-        price: '$190.10',
-        change: '-2.1%',
-        isUp: false,
-        mode: 'Technical',
-        status: 'SELL',
-        conf: '88%',
-        icon: 'fa-solid fa-car-bolt'
-    },
-    {
-        symbol: 'PTT',
-        name: 'PTT PCL',
-        price: '34.50',
-        change: '0.0%',
-        isUp: true,
-        mode: 'Price (<32)',
-        status: 'NEUTRAL',
-        conf: '-',
-        icon: 'fa-solid fa-droplet'
-    },
-    {
-        symbol: 'KBANK',
-        name: 'Kasikornbank',
-        price: '122.00',
-        change: '-0.5%',
-        isUp: false,
-        mode: 'Both',
-        status: 'NEUTRAL',
-        conf: '-',
-        icon: 'fa-solid fa-building-columns'
+// ---------------------------------------------------------
+// FIREBASE CONFIGURATION
+// ---------------------------------------------------------
+// ⚠️ REPLACE WITH YOUR FIREBASE CONFIG FROM CONSOLE
+// Go to Project Settings > General > Is your app not having a nickname? (Scroll down) > Add Web App
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY", // ⚠️ Paste API Key from Firebase Console
+    authDomain: "invest-alert-game.firebaseapp.com",
+    projectId: "invest-alert-game",
+    storageBucket: "invest-alert-game.appspot.com",
+    messagingSenderId: "669180408069",
+    appId: "1:669180408069:web:1130146ef29fd997f2476c"
+};
+
+// Initialize Firebase
+let db;
+try {
+    if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        console.log("Firebase Initialized");
+    } else {
+        console.error("Firebase SDK not loaded");
     }
-];
+} catch (e) {
+    console.error("Firebase Init Error (Check Config):", e);
+}
+
+// Global State
+let watchlistData = [];
+const USER_ID = 'demo-user-001'; // Simulating a user for now
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('App Initialized');
-    renderWatchlist();
-    setupEventListeners();
+    // If Firebase loaded, load data
+    if (db) {
+        loadWatchlist();
+    } else {
+        // Fallback or wait
+        console.warn("Database not ready");
+        document.getElementById('watchlistContainer').innerHTML = '<div style="color:red;padding:20px;">Firebase Config Required in app.js</div>';
+    }
 
-    // Default load Dashboard (ensure first tab is active)
+    setupEventListeners();
     simulateClick('dashboard');
 });
 
 function simulateClick(target) {
     const nav = document.querySelector(`.nav-item[data-target="${target}"]`);
     if (nav) nav.click();
+}
+
+// ---------------------------------------------------------
+// FIRESTORE FUNCTIONS
+// ---------------------------------------------------------
+
+async function loadWatchlist() {
+    if (!db) return;
+    const container = document.getElementById('watchlistContainer');
+    container.innerHTML = '<div style="color:white;text-align:center;padding:20px;">Loading...</div>';
+
+    try {
+        const snapshot = await db.collection('users').doc(USER_ID).collection('watchlist').orderBy('createdAt', 'desc').get();
+        watchlistData = [];
+        snapshot.forEach(doc => {
+            watchlistData.push({ id: doc.id, ...doc.data() });
+        });
+
+        renderWatchlist();
+        updateCryptoPrices(); // Fetch live prices for loaded assets
+    } catch (e) {
+        console.error("Error loading watchlist:", e);
+        // If index error, might fail on sort. Retry without sort
+        try {
+            const snapshot2 = await db.collection('users').doc(USER_ID).collection('watchlist').get();
+            watchlistData = [];
+            snapshot2.forEach(doc => watchlistData.push({ id: doc.id, ...doc.data() }));
+            renderWatchlist();
+            updateCryptoPrices();
+        } catch (e2) {
+            container.innerHTML = '<div style="color:red;text-align:center;">Error loading. Check Console.</div>';
+        }
+    }
+}
+
+async function addAssetToDb(symbol, mode) {
+    if (!db) return;
+    try {
+        const newItem = {
+            symbol: symbol,
+            mode: mode,
+            price: '---', // Will be updated by live fetch
+            change: '0.0%',
+            isUp: true,
+            status: 'WAIT',
+            conf: '-',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        // Check duplicate
+        const exists = watchlistData.find(i => i.symbol === symbol);
+        if (exists) { alert('Asset already exists!'); return; }
+
+        const docRef = await db.collection('users').doc(USER_ID).collection('watchlist').add(newItem);
+        watchlistData.unshift({ id: docRef.id, ...newItem }); // Add to front
+        renderWatchlist();
+        updateCryptoPrices();
+    } catch (e) {
+        console.error("Error adding asset:", e);
+        alert("Failed to save asset");
+    }
+}
+
+async function deleteAssetFromDb(id) {
+    if (!db) return;
+    if (!confirm('Delete this asset?')) return;
+
+    try {
+        await db.collection('users').doc(USER_ID).collection('watchlist').doc(id).delete();
+        watchlistData = watchlistData.filter(item => item.id !== id);
+        renderWatchlist();
+    } catch (e) {
+        console.error("Error deleting asset:", e);
+    }
 }
 
 // ---------------------------------------------------------
@@ -79,29 +131,44 @@ function renderWatchlist() {
     const container = document.getElementById('watchlistContainer');
     if (!container) return;
 
-    const html = mockWatchlist.map(asset => `
-        <div class="asset-card" onclick="openChart('${asset.symbol}')">
-            <div class="asset-header">
-                <div class="asset-icon">
-                    <i class="${asset.icon}"></i>
+    if (watchlistData.length === 0) {
+        container.innerHTML = '<div style="color:#aaa;text-align:center;padding:20px;">No assets yet. Click "Add Asset" to start.</div>';
+        return;
+    }
+
+    const html = watchlistData.map(asset => {
+        // Dynamic Icon Logic
+        let icon = 'fa-solid fa-chart-line';
+        if (['BTC', 'ETH', 'DOGE'].includes(asset.symbol)) icon = 'fa-brands fa-bitcoin';
+        if (['AAPL', 'TSLA', 'GOOGL'].includes(asset.symbol)) icon = 'fa-brands fa-apple';
+        if (asset.symbol.includes('GOLD')) icon = 'fa-solid fa-coins';
+
+        return `
+        <div class="asset-card">
+            <div class="delete-btn" onclick="event.stopPropagation(); deleteAssetFromDb('${asset.id}')" style="position:absolute; top:10px; right:10px; color:#ff4d4d; cursor:pointer; z-index:10;"><i class="fa-solid fa-xmark"></i></div>
+            <div class="card-clickable" onclick="openChart('${asset.symbol}')" style="cursor:pointer;">
+                <div class="asset-header">
+                    <div class="asset-icon">
+                        <i class="${icon}"></i>
+                    </div>
+                    <span class="mode-badge">${asset.mode}</span>
                 </div>
-                <span class="mode-badge">${asset.mode}</span>
-            </div>
-            
-            <div class="asset-info">
-                <span class="symbol" style="font-weight:700; display:block; margin-bottom:4px;">${asset.symbol}</span>
-                <div class="asset-price">${asset.price}</div>
-                <span class="asset-change ${asset.isUp ? 'up' : 'down'}">
-                    ${asset.change} <i class="fa-solid ${asset.isUp ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}"></i>
-                </span>
-            </div>
-            
-            <div class="status-indicator status-${asset.status.toLowerCase()}">
-                <div class="dot"></div>
-                <span>${asset.status} ${asset.conf !== '-' ? `(${asset.conf})` : ''}</span>
+                
+                <div class="asset-info">
+                    <span class="symbol" style="font-weight:700; display:block; margin-bottom:4px;">${asset.symbol}</span>
+                    <div class="asset-price">${asset.price || '---'}</div>
+                    <span class="asset-change ${asset.isUp ? 'up' : 'down'}">
+                        ${asset.change || '0%'} <i class="fa-solid ${asset.isUp ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}"></i>
+                    </span>
+                </div>
+                
+                <div class="status-indicator status-${(asset.status || 'NEUTRAL').toLowerCase()}">
+                    <div class="dot"></div>
+                    <span>${asset.status || 'WAIT'} ${asset.conf && asset.conf !== '-' ? `(${asset.conf})` : ''}</span>
+                </div>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 
     container.innerHTML = html;
 }
@@ -112,33 +179,20 @@ function renderWatchlist() {
 
 window.openChart = function (symbol) {
     console.log('Opening chart for:', symbol);
-
-    // 1. Switch sidebar to chart
     const chartNav = document.querySelector('.nav-item[data-target="chart"]');
-    if (chartNav) {
-        // Manually trigger the click logic
-        updateNavigation(chartNav);
-    }
-
-    // 2. Load symbol
-    setTimeout(() => {
-        initTradingView(symbol);
-    }, 100);
+    if (chartNav) updateNavigation(chartNav);
+    setTimeout(() => initTradingView(symbol), 100);
 }
 
 function initTradingView(symbol) {
     if (typeof TradingView === 'undefined') {
-        console.warn('TradingView library not loaded yet');
+        setTimeout(() => initTradingView(symbol), 500); // Retry if library loading
         return;
     }
-
     const container = document.getElementById('tradingview_Widget');
     if (!container) return;
-
-    // Clear previous if any
     container.innerHTML = '';
 
-    // Detect market for better symbol resolution
     let fullSymbol = symbol;
     if (['PTT', 'KBANK', 'AOT', 'SCB'].includes(symbol)) {
         fullSymbol = `SET:${symbol}`;
@@ -171,28 +225,18 @@ function updateNavigation(selectedItem) {
 
     if (!selectedItem) return;
 
-    // Remove active class
     navItems.forEach(nav => nav.classList.remove('active'));
     sections.forEach(sec => sec.classList.remove('active'));
 
-    // Add active class
     selectedItem.classList.add('active');
-
-    // Show Target Section
     const target = selectedItem.dataset.target;
-    // Fix: ensure we select strictly by ID
     const targetSection = document.getElementById(`view-${target}`);
 
     if (targetSection) {
         targetSection.classList.add('active');
-
-        // Update Title (Get text from link)
         const link = selectedItem.querySelector('a');
         if (link) pageTitle.textContent = link.innerText.trim();
-
-        // Special case: Render Chart if chart tab selected
         if (target === 'chart') {
-            // If no widget yet, init default
             const widgetContainer = document.getElementById('tradingview_Widget');
             if (widgetContainer && widgetContainer.innerHTML === '') {
                 initTradingView('AAPL');
@@ -208,46 +252,38 @@ function updateNavigation(selectedItem) {
 async function updateCryptoPrices() {
     try {
         console.log('Fetching Crypto Prices...');
-        // IDs: bitcoin, ethereum, dogecoin, binancecoin
         const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
         const data = await response.json();
 
-        // Update BTC
-        if (data.bitcoin) {
-            updateAssetData('BTC', data.bitcoin.usd, data.bitcoin.usd_24h_change);
-        }
-        // Update ETH (if added)
-        if (data.ethereum) {
-            updateAssetData('ETH', data.ethereum.usd, data.ethereum.usd_24h_change);
-        }
+        // Update local data and re-render
+        let changed = false;
+        if (data.bitcoin) changed |= updateAssetDataInMemory('BTC', data.bitcoin.usd, data.bitcoin.usd_24h_change);
+        if (data.ethereum) changed |= updateAssetDataInMemory('ETH', data.ethereum.usd, data.ethereum.usd_24h_change);
 
-        renderWatchlist();
+        if (changed) renderWatchlist();
     } catch (e) {
         console.error('Error fetching crypto:', e);
     }
 }
 
-function updateAssetData(symbol, price, changePercent) {
-    const asset = mockWatchlist.find(a => a.symbol === symbol);
-    if (asset) {
-        // Format Price
-        asset.price = '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-        // Format Change
-        const isUp = changePercent >= 0;
-        asset.isUp = isUp;
-        asset.change = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
-
-        // Update Status based on simple logic (just for demo visual)
-        // In real app, this comes from IndicatorService
-        if (Math.abs(changePercent) > 2) {
-            asset.status = isUp ? 'BUY' : 'SELL';
-            asset.conf = '80%'; // Mock confidence for now
-        } else {
-            asset.status = 'NEUTRAL';
-            asset.conf = '-';
+function updateAssetDataInMemory(symbol, price, changePercent) {
+    let found = false;
+    watchlistData.forEach(asset => {
+        if (asset.symbol === symbol) {
+            asset.price = '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const isUp = changePercent >= 0;
+            asset.isUp = isUp;
+            asset.change = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
+            if (Math.abs(changePercent) > 2) {
+                asset.status = isUp ? 'BUY' : 'SELL';
+                asset.conf = '80%';
+            } else {
+                asset.status = 'NEUTRAL';
+            }
+            found = true;
         }
-    }
+    });
+    return found;
 }
 
 // ---------------------------------------------------------
@@ -262,7 +298,6 @@ function setupEventListeners() {
     const modeOptions = document.querySelectorAll('.mode-option');
     const navItems = document.querySelectorAll('.nav-item');
 
-    // --- Sidebar Navigation ---
     navItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
@@ -270,27 +305,14 @@ function setupEventListeners() {
         });
     });
 
-    // --- Modal Logic ---
-    if (addBtn) {
-        addBtn.addEventListener('click', () => {
-            modal.classList.add('show');
-            setTimeout(() => document.getElementById('assetSymbol').focus(), 100);
-        });
-    }
-
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            modal.classList.remove('show');
-        });
-    }
-
-    window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.classList.remove('show');
-        }
+    if (addBtn) addBtn.addEventListener('click', () => {
+        modal.classList.add('show');
+        setTimeout(() => document.getElementById('assetSymbol').focus(), 100);
     });
 
-    // Mode Selection
+    if (closeBtn) closeBtn.addEventListener('click', () => modal.classList.remove('show'));
+    window.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('show'); });
+
     modeOptions.forEach(opt => {
         opt.addEventListener('click', () => {
             modeOptions.forEach(o => o.classList.remove('selected'));
@@ -298,9 +320,8 @@ function setupEventListeners() {
         });
     });
 
-    // Add Asset Action
     if (confirmBtn) {
-        confirmBtn.addEventListener('click', () => {
+        confirmBtn.addEventListener('click', async () => {
             const symbolInput = document.getElementById('assetSymbol');
             const symbol = symbolInput.value.toUpperCase();
             if (!symbol) return;
@@ -308,35 +329,16 @@ function setupEventListeners() {
             const modeEl = document.querySelector('.mode-option.selected');
             const mode = modeEl ? modeEl.dataset.value : 'Technical';
 
-            const newItem = {
-                symbol: symbol,
-                name: symbol, // In real app, fetch name
-                price: 'Loading...',
-                change: '...',
-                isUp: true,
-                mode: mode,
-                status: 'WAIT',
-                conf: '-',
-                icon: 'fa-solid fa-coins' // Default icon
-            };
-
-            // Fix icon for known types
-            if (['BTC', 'ETH', 'DOGE'].includes(symbol)) newItem.icon = 'fa-brands fa-bitcoin';
-            if (['AAPL', 'TSLA', 'GOOGL'].includes(symbol)) newItem.icon = 'fa-brands fa-apple';
-
-            mockWatchlist.push(newItem);
-            renderWatchlist();
-
-            // Trigger fetch immediate if crypto
-            updateCryptoPrices();
+            confirmBtn.innerText = 'Saving...';
+            // Use DB function NOT push to array
+            await addAssetToDb(symbol, mode);
+            confirmBtn.innerText = 'Add Asset';
 
             symbolInput.value = '';
             modal.classList.remove('show');
         });
     }
 
-    // Initial Fetch
-    updateCryptoPrices();
-    // Auto-refresh every 30 seconds
+    // Auto-refresh prices
     setInterval(updateCryptoPrices, 30000);
 }
