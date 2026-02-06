@@ -300,46 +300,58 @@ function updateNavigation(selectedItem) {
 async function updateCryptoPrices() {
     try {
         console.log('Fetching Prices...');
-
-        // 1. Real Crypto Data
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
-        const data = await response.json();
-
         let changed = false;
-        if (data.bitcoin) changed |= updateAssetDataInMemory('BTC', data.bitcoin.usd, data.bitcoin.usd_24h_change);
-        if (data.ethereum) changed |= updateAssetDataInMemory('ETH', data.ethereum.usd, data.ethereum.usd_24h_change);
 
-        // 2. Mock Data for Stocks (Since we don't have a free real-time stock API in frontend)
-        // This makes the UI feel alive for stock assets
-        watchlistData.forEach(asset => {
-            if (!['BTC', 'ETH'].includes(asset.symbol)) {
-                // Check if it's "Mocked" already or empty
-                if (asset.price === '---' || asset.price === 'Loading...' || !asset.lastMockUpdate || (Date.now() - asset.lastMockUpdate > 60000)) {
-                    // Generate realistic looking start price if missing
-                    let basePrice = 100;
-                    if (asset.symbol === 'CPALL') basePrice = 55.00;
-                    if (asset.symbol === 'GOOGL') basePrice = 145.00;
-                    if (asset.symbol === 'TSLA') basePrice = 190.00;
-                    if (asset.symbol === 'AAPL') basePrice = 185.00;
+        // 1. Real Crypto Data (CoinGecko)
+        try {
+            const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
+            const data = await response.json();
+            if (data.bitcoin) changed |= updateAssetDataInMemory('BTC', data.bitcoin.usd, data.bitcoin.usd_24h_change);
+            if (data.ethereum) changed |= updateAssetDataInMemory('ETH', data.ethereum.usd, data.ethereum.usd_24h_change);
+        } catch (e) { console.warn('CoinGecko Error:', e); }
 
-                    // Add small random fluctuation
-                    const randomChange = (Math.random() * 2) - 1; // -1 to +1%
-                    const price = basePrice * (1 + (randomChange / 100));
+        // 2. Real Stock Data via Cloud Function Proxy (Google Finance)
+        // Only fetch if 60s passed to avoid spamming our own function
+        const stockAssets = watchlistData.filter(a => !['BTC', 'ETH'].includes(a.symbol));
 
-                    asset.price = (asset.symbol.includes('SET') || ['CPALL', 'PTT', 'AOT'].includes(asset.symbol) ? '฿' : '$') + price.toFixed(2);
-                    asset.change = (randomChange >= 0 ? '+' : '') + randomChange.toFixed(2) + '%';
-                    asset.isUp = randomChange >= 0;
-                    asset.status = Math.abs(randomChange) > 0.8 ? (asset.isUp ? 'BUY' : 'SELL') : 'NEUTRAL';
-                    asset.conf = asset.status !== 'NEUTRAL' ? Math.floor(70 + Math.random() * 20) + '%' : '-';
-                    asset.lastMockUpdate = Date.now(); // user session specific
-                    changed = true;
+        for (const asset of stockAssets) {
+            if (!asset.lastUpdate || (Date.now() - asset.lastUpdate > 60000)) {
+                try {
+                    // ⚠️ Replace with YOUR actual Cloud Function URL if local testing fails
+                    // Production URL format: https://asia-southeast1-PROJECT_ID.cloudfunctions.net/getStockPrice
+                    const projectId = firebaseConfig.projectId;
+                    const region = 'asia-southeast1';
+                    const url = `https://${region}-${projectId}.cloudfunctions.net/getStockPrice?symbol=${asset.symbol}`;
+
+                    const res = await fetch(url);
+                    const data = await res.json();
+
+                    if (data.price) {
+                        // Update Logic
+                        const currency = ['CPALL', 'PTT', 'AOT', 'KBANK', 'SCB', 'ADVANC'].includes(asset.symbol) ? '฿' : '$';
+                        asset.price = currency + data.price.toLocaleString();
+                        asset.change = data.change; // text "+1.5%"
+
+                        // Parse change for logic
+                        const changeVal = parseFloat(data.change.replace('%', '').replace('+', ''));
+                        const isUp = changeVal >= 0;
+
+                        asset.isUp = isUp;
+                        asset.status = Math.abs(changeVal) > 1.5 ? (isUp ? 'BUY' : 'SELL') : 'NEUTRAL';
+                        asset.conf = asset.status !== 'NEUTRAL' ? 'Strong' : '-';
+
+                        asset.lastUpdate = Date.now();
+                        changed = true;
+                    }
+                } catch (e) {
+                    console.warn(`Failed to fetch ${asset.symbol}:`, e);
                 }
             }
-        });
+        }
 
         if (changed) renderWatchlist();
     } catch (e) {
-        console.error('Error fetching crypto:', e);
+        console.error('Error fetching prices:', e);
     }
 }
 

@@ -56,3 +56,48 @@ exports.monitorCrypto = onSchedule({
     console.log('Running Crypto Monitor');
     // await priceMonitorHandler.executeCrypto();
 });
+
+// -- HTTPS Callable: Get Stock Price (Proxy) --
+// Usage: GET /getStockPrice?symbol=CPALL
+const cors = require('cors')({ origin: true });
+const axios = require('axios');
+const cheerio = require('cheerio');
+
+exports.getStockPrice = onRequest(async (req, res) => {
+    cors(req, res, async () => {
+        const symbol = req.query.symbol || 'SET';
+        // Google Finance URL format: CPALL:BKK -> https://www.google.com/finance/quote/CPALL:BKK
+        // Adjust symbol to match Google Finance format (e.g. CPALL -> CPALL:BKK)
+        let gSymbol = symbol;
+        if (!symbol.includes(':')) {
+            if (['BTC', 'ETH', 'DOGE'].includes(symbol)) gSymbol = `${symbol}-USD`;
+            else gSymbol = `${symbol}:BKK`; // Default to thai stocks
+        }
+
+        try {
+            const url = `https://www.google.com/finance/quote/${gSymbol}`;
+            const response = await axios.get(url);
+            const $ = cheerio.load(response.data);
+
+            // Selector for Google Finance Price (Large Class)
+            const priceText = $('.YMlKec.fxKbKc').first().text().replace(/[^\d.-]/g, '');
+            const changeText = $('.P2Luy.Ez2Ioe').first().text() || $('.P2Luy.Ec1ame').first().text() || "0";
+
+            const price = parseFloat(priceText);
+
+            if (isNaN(price)) {
+                return res.json({ error: 'Not found', symbol: gSymbol });
+            }
+
+            res.json({
+                symbol: symbol,
+                price: price, // Raw number
+                change: changeText, // Raw text like "+1.25%"
+                source: 'Google Finance'
+            });
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ error: e.message });
+        }
+    });
+});
