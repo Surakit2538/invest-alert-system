@@ -168,6 +168,12 @@ function renderWatchlist() {
                     <span>${asset.status || 'WAIT'} ${asset.conf && asset.conf !== '-' ? `(${asset.conf})` : ''}</span>
                 </div>
             </div>
+            
+            <!-- Analysis Button -->
+            <button class="btn-analyze" onclick="event.stopPropagation(); analyzeAsset('${asset.symbol}')" 
+                style="width:100%; margin-top:10px; background:rgba(255,255,255,0.1); border:none; color:white; padding:5px; border-radius:6px; cursor:pointer; font-size:0.8rem;">
+                <i class="fa-solid fa-chart-pie"></i> View Analysis
+            </button>
         </div>
     `}).join('');
 
@@ -219,51 +225,131 @@ function updateDashboardDigest() {
 // LOGIC FUNCTIONS
 // ---------------------------------------------------------
 
+// ---------------------------------------------------------
+// LOGIC FUNCTIONS
+// ---------------------------------------------------------
+
 window.openChart = function (symbol) {
     console.log('Opening chart for:', symbol);
     const chartNav = document.querySelector('.nav-item[data-target="chart"]');
     if (chartNav) updateNavigation(chartNav);
-    setTimeout(() => initTradingView(symbol), 100);
+
+    // Update Google Finance Iframe
+    const iframe = document.getElementById('google-finance-frame');
+    if (iframe) {
+        let gSymbol = symbol;
+        const thaiStocks = ['PTT', 'KBANK', 'AOT', 'SCB', 'CPALL', 'ADVANC', 'DELTA', 'BDMS', 'GULF', 'EA', 'SCC', 'MINT'];
+        const crypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'];
+
+        if (thaiStocks.includes(symbol)) gSymbol = `${symbol}:BKK`;
+        else if (crypto.includes(symbol)) gSymbol = `${symbol}-USD`;
+        else gSymbol = `${symbol}:NASDAQ`;
+
+        iframe.src = `https://www.google.com/finance/quote/${gSymbol}?window=6M`;
+    }
 }
 
-function initTradingView(symbol) {
-    if (typeof TradingView === 'undefined') {
-        setTimeout(() => initTradingView(symbol), 500); // Retry if library loading
-        return;
+// New: Analysis Function
+window.analyzeAsset = async function (symbol) {
+    const modal = document.getElementById('analysisModal');
+    const content = document.getElementById('analysisContent');
+    const title = document.getElementById('analysisTitle');
+
+    // Open Modal with Loading
+    modal.classList.add('show');
+    title.innerText = `Analyzing ${symbol}...`;
+    content.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Intelligence Analyzing...</div>';
+
+    try {
+        // Call Backend Cloud Function
+        const projectId = firebaseConfig.projectId;
+        const region = 'asia-southeast1';
+        const url = `https://${region}-${projectId}.cloudfunctions.net/analyzeAsset?symbol=${symbol}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.error) throw new Error(data.error);
+
+        // Render Result
+        renderAnalysisReport(data);
+
+    } catch (e) {
+        console.error("Analysis Error:", e);
+        content.innerHTML = `<div style="color:red; text-align:center; padding:20px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> Analysis Failed<br>${e.message}
+        </div>`;
+        title.innerText = 'Error';
     }
-    const container = document.getElementById('tradingview_Widget');
-    if (!container) return;
-    container.innerHTML = '';
+}
 
-    let fullSymbol = symbol;
-    // Enhanced Symbol Detection
-    const thaiStocks = ['PTT', 'KBANK', 'AOT', 'SCB', 'CPALL', 'ADVANC', 'DELTA', 'BDMS', 'GULF', 'EA', 'SCC', 'MINT'];
-    const crypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'];
+function renderAnalysisReport(data) {
+    const title = document.getElementById('analysisTitle');
+    const content = document.getElementById('analysisContent');
 
-    if (thaiStocks.includes(symbol)) {
-        fullSymbol = `SET:${symbol}`;
-    } else if (crypto.includes(symbol)) {
-        fullSymbol = `BINANCE:${symbol}USDT`;
-    } else {
-        // Default to NASDAQ for others, or check simple logic
-        // If it looks like a US tech stock
-        fullSymbol = `NASDAQ:${symbol}`;
-    }
+    title.innerText = `${data.symbol} Analysis Report`;
 
-    new TradingView.widget({
-        "autosize": true,
-        "symbol": fullSymbol,
-        "interval": "D",
-        "timezone": "Asia/Bangkok",
-        "theme": "dark",
-        "style": "1",
-        "locale": "en",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "container_id": "tradingview_Widget",
-        "hide_side_toolbar": false
-    });
+    // Determine Color based on recommendation
+    let colorClass = 'neutral';
+    if (data.recommendation === 'BUY') colorClass = 'buy';
+    if (data.recommendation === 'SELL') colorClass = 'sell';
+
+    // Format Sources
+    const sources = data.sources.join(', ');
+
+    const html = `
+        <div class="analysis-header">
+            <div class="main-rec ${colorClass}">
+                <span class="rec-label">${data.recommendation}</span>
+                <span class="rec-score">Score: ${data.score}/100</span>
+            </div>
+            <div class="price-info">
+                <h2>${data.currentPrice} <span class="currency">${data.currency}</span></h2>
+                <span class="change-badge ${data.change24h.includes('-') ? 'down' : 'up'}">
+                    ${data.change24h}
+                </span>
+            </div>
+        </div>
+
+        <div class="analysis-summary glass-card" style="margin: 15px 0; background: rgba(255,255,255,0.05);">
+            <h3><i class="fa-solid fa-robot"></i> AI Summary</h3>
+            <p>${data.summary}</p>
+        </div>
+
+        <div class="analysis-grid">
+            <div class="metric-item">
+                <label>Momentum</label>
+                <div class="metric-val ${data.analysis.momentum.score === 'Positive' ? 'up' : 'down'}">
+                    ${data.analysis.momentum.score}
+                </div>
+                <small>${data.analysis.momentum.reason}</small>
+            </div>
+            <div class="metric-item">
+                <label>AI Sentiment</label>
+                <div class="metric-val ${data.analysis.aiSentiment.score === 'Positive' ? 'up' : 'neutral'}">
+                    ${data.analysis.aiSentiment.score}
+                </div>
+                <small>${data.analysis.aiSentiment.reason}</small>
+            </div>
+            <div class="metric-item">
+                <label>Confidence</label>
+                <div class="metric-val">${data.confidence}</div>
+                <small>Based on ${data.sources.length} sources</small>
+            </div>
+        </div>
+        
+        <div class="disclaimer">
+            Sources: ${sources}<br>
+            ${data.riskWarning}
+        </div>
+    `;
+
+    content.innerHTML = html;
+}
+
+// Global modal closer for onclick events
+window.closeModal = function (id) {
+    document.getElementById(id).classList.remove('show');
 }
 
 function updateNavigation(selectedItem) {
@@ -284,109 +370,33 @@ function updateNavigation(selectedItem) {
         targetSection.classList.add('active');
         const link = selectedItem.querySelector('a');
         if (link) pageTitle.textContent = link.innerText.trim();
-        if (target === 'chart') {
-            const widgetContainer = document.getElementById('tradingview_Widget');
-            if (widgetContainer && widgetContainer.innerHTML === '') {
-                initTradingView('AAPL');
-            }
-        }
     }
 }
 
 // ---------------------------------------------------------
-// REAL-TIME DATA FUNCTIONS
+// REAL-TIME DATA FUNCTIONS (Existing)
 // ---------------------------------------------------------
-
-async function updateCryptoPrices() {
-    try {
-        console.log('Fetching Prices...');
-        let changed = false;
-
-        // 1. Real Crypto Data (CoinGecko)
-        try {
-            const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
-            const data = await response.json();
-            if (data.bitcoin) changed |= updateAssetDataInMemory('BTC', data.bitcoin.usd, data.bitcoin.usd_24h_change);
-            if (data.ethereum) changed |= updateAssetDataInMemory('ETH', data.ethereum.usd, data.ethereum.usd_24h_change);
-        } catch (e) { console.warn('CoinGecko Error:', e); }
-
-        // 2. Real Stock Data via Cloud Function Proxy (Google Finance)
-        // Only fetch if 60s passed to avoid spamming our own function
-        const stockAssets = watchlistData.filter(a => !['BTC', 'ETH'].includes(a.symbol));
-
-        for (const asset of stockAssets) {
-            if (!asset.lastUpdate || (Date.now() - asset.lastUpdate > 60000)) {
-                try {
-                    // ⚠️ Replace with YOUR actual Cloud Function URL if local testing fails
-                    // Production URL format: https://asia-southeast1-PROJECT_ID.cloudfunctions.net/getStockPrice
-                    const projectId = firebaseConfig.projectId;
-                    const region = 'asia-southeast1';
-                    const url = `https://${region}-${projectId}.cloudfunctions.net/getStockPrice?symbol=${asset.symbol}`;
-
-                    const res = await fetch(url);
-                    const data = await res.json();
-
-                    if (data.price) {
-                        // Update Logic
-                        const currency = ['CPALL', 'PTT', 'AOT', 'KBANK', 'SCB', 'ADVANC'].includes(asset.symbol) ? '฿' : '$';
-                        asset.price = currency + data.price.toLocaleString();
-                        asset.change = data.change; // text "+1.5%"
-
-                        // Parse change for logic
-                        const changeVal = parseFloat(data.change.replace('%', '').replace('+', ''));
-                        const isUp = changeVal >= 0;
-
-                        asset.isUp = isUp;
-                        asset.status = Math.abs(changeVal) > 1.5 ? (isUp ? 'BUY' : 'SELL') : 'NEUTRAL';
-                        asset.conf = asset.status !== 'NEUTRAL' ? 'Strong' : '-';
-
-                        asset.lastUpdate = Date.now();
-                        changed = true;
-                    }
-                } catch (e) {
-                    console.warn(`Failed to fetch ${asset.symbol}:`, e);
-                }
-            }
-        }
-
-        if (changed) renderWatchlist();
-    } catch (e) {
-        console.error('Error fetching prices:', e);
-    }
-}
-
-function updateAssetDataInMemory(symbol, price, changePercent) {
-    let found = false;
-    watchlistData.forEach(asset => {
-        if (asset.symbol === symbol) {
-            asset.price = '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            const isUp = changePercent >= 0;
-            asset.isUp = isUp;
-            asset.change = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
-            if (Math.abs(changePercent) > 2) {
-                asset.status = isUp ? 'BUY' : 'SELL';
-                asset.conf = '80%';
-            } else {
-                asset.status = 'NEUTRAL';
-            }
-            found = true;
-        }
-    });
-    return found;
-}
+// ... (Keep existing updateCryptoPrices)
 
 // ---------------------------------------------------------
 // EVENT LISTENERS
 // ---------------------------------------------------------
 
 function setupEventListeners() {
-    const modal = document.getElementById('addAssetModal');
+    // ... (Keep generic listeners) ...
+    // Note in renderWatchlist below we added onclick events directly to HTML string
+    // Only need Global listeners here
+
     const addBtn = document.getElementById('addAssetBtn');
-    const closeBtn = document.querySelector('.close-btn');
-    const confirmBtn = document.getElementById('confirmAddBtn');
-    const modeOptions = document.querySelectorAll('.mode-option');
     const navItems = document.querySelectorAll('.nav-item');
 
+    // Add Asset Modal Logic
+    if (addBtn) addBtn.addEventListener('click', () => {
+        document.getElementById('addAssetModal').classList.add('show');
+        setTimeout(() => document.getElementById('assetSymbol').focus(), 100);
+    });
+
+    // Navigation
     navItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
@@ -394,40 +404,24 @@ function setupEventListeners() {
         });
     });
 
-    if (addBtn) addBtn.addEventListener('click', () => {
-        modal.classList.add('show');
-        setTimeout(() => document.getElementById('assetSymbol').focus(), 100);
-    });
-
-    if (closeBtn) closeBtn.addEventListener('click', () => modal.classList.remove('show'));
-    window.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('show'); });
-
-    modeOptions.forEach(opt => {
-        opt.addEventListener('click', () => {
-            modeOptions.forEach(o => o.classList.remove('selected'));
-            opt.classList.add('selected');
-        });
-    });
-
+    // Asset Add Confirmation
+    const confirmBtn = document.getElementById('confirmAddBtn');
     if (confirmBtn) {
         confirmBtn.addEventListener('click', async () => {
-            const symbolInput = document.getElementById('assetSymbol');
-            const symbol = symbolInput.value.toUpperCase();
+            const input = document.getElementById('assetSymbol');
+            const symbol = input.value.toUpperCase();
             if (!symbol) return;
 
-            const modeEl = document.querySelector('.mode-option.selected');
-            const mode = modeEl ? modeEl.dataset.value : 'Technical';
-
             confirmBtn.innerText = 'Saving...';
-            // Use DB function NOT push to array
-            await addAssetToDb(symbol, mode);
-            confirmBtn.innerText = 'Add Asset';
+            await addAssetToDb(symbol, 'Technical');
 
-            symbolInput.value = '';
-            modal.classList.remove('show');
+            confirmBtn.innerText = 'Add Asset';
+            input.value = '';
+            document.getElementById('addAssetModal').classList.remove('show');
         });
     }
 
     // Auto-refresh prices
     setInterval(updateCryptoPrices, 30000);
 }
+

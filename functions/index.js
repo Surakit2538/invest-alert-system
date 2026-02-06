@@ -63,41 +63,47 @@ const cors = require('cors')({ origin: true });
 const axios = require('axios');
 const cheerio = require('cheerio');
 
+// Load Logic Handlers
+const analyzeAssetHandler = require('./handlers/analyzeAsset');
+
+// 1. Get Stock Price (Simple Proxy)
 exports.getStockPrice = onRequest(async (req, res) => {
     cors(req, res, async () => {
         const symbol = req.query.symbol || 'SET';
-        // Google Finance URL format: CPALL:BKK -> https://www.google.com/finance/quote/CPALL:BKK
-        // Adjust symbol to match Google Finance format (e.g. CPALL -> CPALL:BKK)
-        let gSymbol = symbol;
-        if (!symbol.includes(':')) {
-            if (['BTC', 'ETH', 'DOGE'].includes(symbol)) gSymbol = `${symbol}-USD`;
-            else gSymbol = `${symbol}:BKK`; // Default to thai stocks
-        }
 
         try {
-            const url = `https://www.google.com/finance/quote/${gSymbol}`;
-            const response = await axios.get(url);
-            const $ = cheerio.load(response.data);
-
-            // Selector for Google Finance Price (Large Class)
-            const priceText = $('.YMlKec.fxKbKc').first().text().replace(/[^\d.-]/g, '');
-            const changeText = $('.P2Luy.Ez2Ioe').first().text() || $('.P2Luy.Ec1ame').first().text() || "0";
-
-            const price = parseFloat(priceText);
-
-            if (isNaN(price)) {
-                return res.json({ error: 'Not found', symbol: gSymbol });
-            }
+            const { fetchGoogleFinance } = require('./utils/dataAggregator');
+            const data = await fetchGoogleFinance(symbol);
+            if (!data) return res.status(404).json({ error: 'Not found' });
 
             res.json({
                 symbol: symbol,
-                price: price, // Raw number
-                change: changeText, // Raw text like "+1.25%"
-                source: 'Google Finance'
+                price: data.price,
+                change: data.changePercent + "%",
+                source: 'Google Finance (Refactored)'
             });
         } catch (e) {
             console.error(e);
             res.status(500).json({ error: e.message });
         }
     });
+});
+
+// 2. Analyze Asset (Advanced AI + Aggregation)
+// Usage: GET /analyzeAsset?symbol=CPALL
+exports.analyzeAsset = onRequest({
+    cors: true,
+    region: "asia-southeast1",
+    timeoutSeconds: 60 // Allow longer timeout for AI
+}, async (req, res) => {
+    try {
+        const symbol = req.query.symbol;
+        if (!symbol) return res.status(400).json({ error: 'Symbol required' });
+
+        const result = await analyzeAssetHandler.execute(symbol);
+        res.json(result);
+    } catch (e) {
+        console.error("Analysis Failed:", e);
+        res.status(500).json({ error: e.message });
+    }
 });
