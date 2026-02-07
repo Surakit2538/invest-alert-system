@@ -333,6 +333,7 @@ function renderAnalysisReport(data) {
     let colorClass = 'neutral';
     if (rec.includes('BUY')) colorClass = 'buy';
     else if (rec.includes('SELL')) colorClass = 'sell';
+    else if (rec.includes('HOLD')) colorClass = 'hold';
 
     // Format Sources
     const sources = (data.sources || []).join(', ');

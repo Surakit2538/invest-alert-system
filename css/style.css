@@ -442,8 +442,10 @@ header h1 {
     box-shadow: 0 0 10px var(--danger);
 }
 
-.status-neutral .dot {
-    background: #fbbf24;
+.status-neutral .dot,
+.status-hold .dot {
+    background: #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
 }
 
 .status-buy {
@@ -454,8 +456,9 @@ header h1 {
     color: var(--danger);
 }
 
-.status-neutral {
-    color: #fbbf24;
+.status-neutral,
+.status-hold {
+    color: #ffd700;
 }
 
 /* Modal Styles */
@@ -623,8 +626,10 @@ header h1 {
     color: var(--danger);
 }
 
-.main-rec.neutral {
-    color: #fbbf24;
+.main-rec.neutral,
+.main-rec.hold {
+    color: #ffd700;
+    /* Pure Gold/Yellow for clearer visibility */
 }
 
 .price-info {
@@ -692,8 +697,9 @@ header h1 {
     color: var(--danger);
 }
 
-.metric-val.neutral {
-    color: #fbbf24;
+.metric-val.neutral,
+.metric-val.hold {
+    color: #ffd700;
 }
 
 .disclaimer {
