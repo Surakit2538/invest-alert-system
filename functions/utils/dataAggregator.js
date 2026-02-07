@@ -22,11 +22,20 @@ async function fetchStockPrice(symbol) {
     let ySymbol = symbol;
 
     // Symbol Normalization
-    if (['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'].includes(symbol)) {
+    // 1. If symbol already has period or hyphen (e.g. "BTC-USD", "CPALL.BK", "BABA"), assume it's valid.
+    if (symbol.includes('.') || symbol.includes('-')) {
+        ySymbol = symbol;
+    }
+    // 2. Check for Crypto keywords (if raw symbol passed like "BTC")
+    else if (['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'].includes(symbol)) {
         ySymbol = `${symbol}-USD`;
-    } else if (!symbol.includes('.') && !['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'NFLX', 'NVDA', 'AMD', 'INTC', 'BABA', 'JD', 'BIDU'].includes(symbol)) {
-        // Assume Thai Stock (SET) if not US Big Tech
-        // Note: BABA is US (NYSE), so coverage added above
+    }
+    // 3. Check for known US/Global Stocks (to avoid .BK suffix)
+    else if (['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'NFLX', 'NVDA', 'AMD', 'INTC', 'BABA', 'JD', 'BIDU', 'TCEHY', 'TSM'].includes(symbol)) {
+        ySymbol = symbol;
+    }
+    // 4. Default to Thai Stock
+    else {
         ySymbol = `${symbol}.BK`;
     }
 

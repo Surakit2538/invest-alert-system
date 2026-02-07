@@ -37,11 +37,13 @@ async function execute(symbol) {
     // 1. Symbol Normalization for Yahoo Finance
     let ySymbol = symbol;
     const isCrypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'].includes(symbol);
-    const isUS = ['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'NFLX', 'NVDA', 'AMD', 'INTC'].includes(symbol);
+    const isUS = ['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'NFLX', 'NVDA', 'AMD', 'INTC', 'BABA', 'JD', 'BIDU', 'TCEHY', 'TSM'].includes(symbol);
 
-    if (isCrypto) {
+    if (symbol.includes('.') || symbol.includes('-')) {
+        ySymbol = symbol;
+    } else if (isCrypto) {
         ySymbol = `${symbol}-USD`;
-    } else if (!isUS && !symbol.includes('.')) {
+    } else if (!isUS) {
         // Assume Thai Stock if not US and no suffix
         ySymbol = `${symbol}.BK`;
     }
