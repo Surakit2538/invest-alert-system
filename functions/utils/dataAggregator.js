@@ -1,54 +1,48 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
+const pkg = require('yahoo-finance2');
+let yahooFinance;
+// Robust initialization
+if (pkg.default) {
+    if (typeof pkg.default === 'function') {
+        try { yahooFinance = new pkg.default(); } catch (e) { yahooFinance = pkg.default; }
+    } else { yahooFinance = pkg.default; }
+} else {
+    if (typeof pkg === 'function') {
+        try { yahooFinance = new pkg(); } catch (e) { yahooFinance = pkg; }
+    } else { yahooFinance = pkg; }
+}
+if (yahooFinance && typeof yahooFinance.suppressNotices === 'function') {
+    yahooFinance.suppressNotices(['yahooSurvey', 'nonsensical']);
+}
 
 /**
- * Fetches stock data from Google Finance via Scraping
- * @param {string} symbol - e.g. "CPALL", "GOOGL"
- * @param {string} type - "stock-th", "stock-us", "crypto"
+ * Fetches stock/crypto data from Yahoo Finance (API)
+ * @param {string} symbol - e.g. "CPALL", "GOOGL", "BTC"
  */
-async function fetchGoogleFinance(symbol) {
-    let gSymbol = symbol;
+async function fetchStockPrice(symbol) {
+    let ySymbol = symbol;
 
-    // Format symbol for Google Finance
-    if (!symbol.includes(':') && !symbol.includes('-')) {
-        if (['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'].includes(symbol)) {
-            gSymbol = `${symbol}-USD`;
-        } else if (['CPALL', 'PTT', 'AOT', 'KBANK', 'SCB', 'ADVANC', 'DELTA', 'BDMS', 'GULF', 'EA', 'SCC', 'MINT'].includes(symbol)) {
-            gSymbol = `${symbol}:BKK`;
-        } else {
-            gSymbol = `${symbol}:NASDAQ`; // Default assumption
-        }
+    // Symbol Normalization
+    if (['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'].includes(symbol)) {
+        ySymbol = `${symbol}-USD`;
+    } else if (!symbol.includes('.') && !['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'NFLX', 'NVDA', 'AMD', 'INTC', 'BABA', 'JD', 'BIDU'].includes(symbol)) {
+        // Assume Thai Stock (SET) if not US Big Tech
+        // Note: BABA is US (NYSE), so coverage added above
+        ySymbol = `${symbol}.BK`;
     }
 
     try {
-        const url = `https://www.google.com/finance/quote/${gSymbol}`;
-        const response = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
-        });
-        const $ = cheerio.load(response.data);
-
-        // Selectors (Updated based on common Google Finance structure)
-        const priceText = $('.YMlKec.fxKbKc').first().text().replace(/[^\d.-]/g, '');
-        const changeText = $('.P2Luy.Ez2Ioe').first().text() || $('.P2Luy.Ec1ame').first().text() || "0";
-        const changePercentText = $('.JwB6zf').first().text() || "0%";
-
-        // History (Very basic scraping of visible range if possible, otherwise we Mock history for now since we can't scrape charts easily)
-        // Note: For real history, we'd need a proper API or more complex scraping. 
-        // For this MVP, we will simulate history based on current trend to allow the algo to work.
-
-        const price = parseFloat(priceText);
-        const change = parseFloat(changeText.replace(/[^\d.-]/g, ''));
-        const changePercent = parseFloat(changePercentText.replace(/[^\d.-]/g, ''));
+        const quote = await yahooFinance.quote(ySymbol);
+        if (!quote) throw new Error("Quote not found");
 
         return {
-            source: 'Google Finance',
-            price: price || 0,
-            change: change || 0,
-            changePercent: changePercent || 0,
-            currency: gSymbol.includes('BKK') ? 'THB' : 'USD'
+            source: 'Yahoo Finance',
+            price: quote.regularMarketPrice || 0,
+            change: quote.regularMarketChange || 0,
+            changePercent: quote.regularMarketChangePercent || 0,
+            currency: quote.currency || 'USD'
         };
     } catch (e) {
-        console.error(`Google Finance Scraping Error (${symbol}):`, e.message);
+        console.error(`Yahoo Finance Error (${ySymbol}):`, e.message);
         return null;
     }
 }
@@ -96,37 +90,31 @@ async function fetchCoinGecko(symbol) {
 /**
  * Aggregates data from available sources
  */
+// ... (fetchCoinGecko function remains but unused by default now)
+
+/**
+ * Aggregates data (now simplified to use Yahoo Finance for everything)
+ */
 async function aggregateData(symbol) {
-    const isCrypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'].includes(symbol);
+    // Yahoo Finance handles both Stocks and Crypto
+    // So we just use fetchStockPrice for everything
+    const data = await fetchStockPrice(symbol);
 
-    // Parallel Fetch
-    const promises = [fetchGoogleFinance(symbol)];
-    if (isCrypto) promises.push(fetchCoinGecko(symbol));
+    if (!data) return { symbol, price: 0, changePercent: 0, type: 'Unknown' };
 
-    const results = await Promise.allSettled(promises);
-
-    const googleData = results[0].status === 'fulfilled' ? results[0].value : null;
-    const geckoData = isCrypto && results[1].status === 'fulfilled' ? results[1].value : null;
-
-    // Merge Data
-    const combined = {
+    return {
         symbol,
-        type: isCrypto ? 'Crypto' : 'Stock',
-        price: googleData?.price || geckoData?.price || 0,
-        changePercent: googleData?.changePercent || geckoData?.changePercent || 0,
-        volume: geckoData?.volume || 0, // Stocks usually hard to scrape volume reliable without specific selectors
-        marketCap: geckoData?.marketCap || 0,
-        details: {
-            google: googleData,
-            gecko: geckoData
-        }
+        type: data.currency === 'USD' && symbol.length <= 4 && !symbol.includes('.') ? 'Crypto/US' : 'Stock', // Rough heuristic
+        price: data.price,
+        changePercent: data.changePercent,
+        volume: 0,
+        marketCap: 0,
+        details: { yahoo: data }
     };
-
-    return combined;
 }
 
 module.exports = {
-    fetchGoogleFinance,
+    fetchStockPrice, // Renamed from fetchGoogleFinance
     fetchCoinGecko,
     aggregateData
 };

@@ -72,15 +72,15 @@ exports.getStockPrice = onRequest(async (req, res) => {
         const symbol = req.query.symbol || 'SET';
 
         try {
-            const { fetchGoogleFinance } = require('./utils/dataAggregator');
-            const data = await fetchGoogleFinance(symbol);
+            const { fetchStockPrice } = require('./utils/dataAggregator');
+            const data = await fetchStockPrice(symbol);
             if (!data) return res.status(404).json({ error: 'Not found' });
 
             res.json({
                 symbol: symbol,
                 price: data.price,
                 change: data.changePercent + "%",
-                source: 'Google Finance (Refactored)'
+                source: 'Yahoo Finance (API)'
             });
         } catch (e) {
             console.error(e);
