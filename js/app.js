@@ -267,27 +267,34 @@ window.analyzeAsset = async function (symbol) {
 
         // UPDATE WATCHLIST CARD TO MATCH ANALYSIS
         // Find asset in local state
+        // Find asset in local state
         const asset = watchlistData.find(a => a.symbol === symbol);
+
+        console.log(`[Analysis] Fetched Data for ${symbol}: Status=${data.recommendation}, Score=${data.score}, Price=${data.currentPrice}`);
+
         if (asset) {
             // Mark as Analyzed and Store Analysis Data for Persistence
             asset.analyzed = true;
             asset.lastAnalysis = Date.now();
             asset.analysisData = {
                 status: data.recommendation,
-                conf: `Score: ${data.score}/100`, // format consistently
+                conf: `Score: ${data.score}/100`,
                 price: `${data.currentPrice} ${data.currency}`,
                 change: data.change24h,
                 isUp: !data.change24h.includes('-')
             };
 
-            // Immediate Update
+            // Immediate Update (Force Overwrite)
             asset.status = asset.analysisData.status;
-            asset.conf = asset.analysisData.conf; // e.g. "Score: 58/100"
+            asset.conf = asset.analysisData.conf;
             asset.price = asset.analysisData.price;
             asset.change = asset.analysisData.change;
             asset.isUp = asset.analysisData.isUp;
 
-            renderWatchlist(); // Refresh UI
+            console.log(`[Analysis] Updated Asset Object:`, asset);
+            renderWatchlist();
+        } else {
+            console.warn(`[Analysis] Asset ${symbol} not found in watchlistData!`);
         }
 
     } catch (e) {
@@ -470,6 +477,7 @@ function updateAssetDataInMemory(symbol, price, changePercent) {
 
             // 2. BUT if Analyzed Recently, OVERWRITE with Analysis Snapshot to ensure consistency
             if (asset.analyzed && asset.analysisData && (Date.now() - (asset.lastAnalysis || 0) < 3600000)) {
+                console.log(`[Update] Maintaining Analysis Data for ${symbol} (Analyzed recently). Status: ${asset.analysisData.status}`);
                 // Force sync with Analysis Report
                 asset.status = asset.analysisData.status;
                 asset.conf = asset.analysisData.conf;
