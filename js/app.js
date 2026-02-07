@@ -66,7 +66,9 @@ async function loadWatchlist() {
         const snapshot = await db.collection('users').doc(USER_ID).collection('watchlist').orderBy('createdAt', 'desc').get();
         watchlistData = [];
         snapshot.forEach(doc => {
-            watchlistData.push({ id: doc.id, ...doc.data() });
+            const d = doc.data();
+            console.log(`[Load] Loaded ${d.symbol}. Status: ${d.status}, Analyzed: ${d.analyzed}, LastAnalysis: ${d.lastAnalysis}`);
+            watchlistData.push({ id: doc.id, ...d });
         });
 
         renderWatchlist();
