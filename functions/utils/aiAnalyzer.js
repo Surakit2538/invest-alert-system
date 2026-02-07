@@ -12,13 +12,18 @@ const genAI = new GoogleGenerativeAI(API_KEY);
  * @param {object} marketData - The aggregated market data
  */
 async function generateAIAnalysis(symbol, marketData) {
-    if (!process.env.GEMINI_API_KEY && API_KEY === "YOUR_GEMINI_API_KEY") {
-        console.warn("Gemini API Key missing. Returning mock analysis.");
+    // Explicitly check for key
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY") {
+        console.warn("Gemini API Key missing (Checked process.env). Returning mock analysis.");
         return getMockAIAnalysis(symbol, marketData);
     }
 
+    // Re-initialize with correct key if needed (though global const might catch it, this is safer)
+    const genAI = new GoogleGenerativeAI(apiKey);
+
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `
         You are a professional financial analyst. Analyze this asset: ${symbol}.

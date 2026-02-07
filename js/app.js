@@ -225,9 +225,14 @@ function updateDashboardDigest() {
 // LOGIC FUNCTIONS
 // ---------------------------------------------------------
 
-// ---------------------------------------------------------
-// LOGIC FUNCTIONS
-// ---------------------------------------------------------
+function getRecommendationFromChange(changePercent) {
+    const absChange = Math.abs(changePercent);
+    const isUp = changePercent >= 0;
+
+    if (absChange >= 3.0) return { status: isUp ? 'BUY' : 'SELL', label: 'Strong' };
+    if (absChange >= 1.5) return { status: isUp ? 'BUY' : 'SELL', label: '' }; // Clean display (Just BUY)
+    return { status: 'NEUTRAL', label: '' };
+}
 
 window.openChart = function (symbol) {
     console.log('Opening chart for:', symbol);
@@ -236,16 +241,21 @@ window.openChart = function (symbol) {
 
     // TradingView Symbol Formatting
     let tvSymbol = symbol;
-    const thaiStocks = ['PTT', 'KBANK', 'AOT', 'SCB', 'CPALL', 'ADVANC', 'DELTA', 'BDMS', 'GULF', 'EA', 'SCC', 'MINT'];
-    const crypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'];
+    const crypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA', 'USDT'];
+    const usStocks = ['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'NFLX', 'NVDA', 'AMD', 'INTC'];
 
     // Check custom prefixes or defaults
     if (symbol.includes(':')) {
         tvSymbol = symbol;
     } else {
-        if (thaiStocks.includes(symbol)) tvSymbol = `SET:${symbol}`;
-        else if (crypto.includes(symbol)) tvSymbol = `BINANCE:${symbol}USDT`;
-        else tvSymbol = `NASDAQ:${symbol}`; // Default fallback
+        if (crypto.includes(symbol)) {
+            tvSymbol = `BINANCE:${symbol}USDT`;
+        } else if (usStocks.includes(symbol)) {
+            tvSymbol = `NASDAQ:${symbol}`;
+        } else {
+            // Default assumption: If not Crypto/US Tech, assumes Thai Stock (SET)
+            tvSymbol = `BKK:${symbol}`;
+        }
     }
 
     // Initialize Widget
@@ -438,8 +448,10 @@ async function updateCryptoPrices() {
                         const isUp = changeVal >= 0;
 
                         asset.isUp = isUp;
-                        asset.status = Math.abs(changeVal) > 1.5 ? (isUp ? 'BUY' : 'SELL') : 'NEUTRAL';
-                        asset.conf = asset.status !== 'NEUTRAL' ? 'Strong' : '-';
+                        // Standardized Recommendation Logic (Card)
+                        const rec = getRecommendationFromChange(changeVal);
+                        asset.status = rec.status; // BUY, SELL, NEUTRAL
+                        asset.conf = rec.label;    // Strong, or empty
 
                         asset.lastUpdate = Date.now();
                         changed = true;
@@ -464,62 +476,12 @@ function updateAssetDataInMemory(symbol, price, changePercent) {
             const isUp = changePercent >= 0;
             asset.isUp = isUp;
             asset.change = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
-            if (Math.abs(changePercent) > 2) {
-                asset.status = isUp ? 'BUY' : 'SELL';
-                asset.conf = '80%';
-            } else {
-                asset.status = 'NEUTRAL';
-            }
+            // Standardized Logic for Crypto too
+            const rec = getRecommendationFromChange(changePercent);
+            asset.status = rec.status;
+            asset.conf = rec.label;
             found = true;
         }
     });
     return found;
 }
-
-// ---------------------------------------------------------
-// EVENT LISTENERS
-// ---------------------------------------------------------
-
-function setupEventListeners() {
-    // ... (Keep generic listeners) ...
-    // Note in renderWatchlist below we added onclick events directly to HTML string
-    // Only need Global listeners here
-
-    const addBtn = document.getElementById('addAssetBtn');
-    const navItems = document.querySelectorAll('.nav-item');
-
-    // Add Asset Modal Logic
-    if (addBtn) addBtn.addEventListener('click', () => {
-        document.getElementById('addAssetModal').classList.add('show');
-        setTimeout(() => document.getElementById('assetSymbol').focus(), 100);
-    });
-
-    // Navigation
-    navItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            updateNavigation(item);
-        });
-    });
-
-    // Asset Add Confirmation
-    const confirmBtn = document.getElementById('confirmAddBtn');
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', async () => {
-            const input = document.getElementById('assetSymbol');
-            const symbol = input.value.toUpperCase();
-            if (!symbol) return;
-
-            confirmBtn.innerText = 'Saving...';
-            await addAssetToDb(symbol, 'Technical');
-
-            confirmBtn.innerText = 'Add Asset';
-            input.value = '';
-            document.getElementById('addAssetModal').classList.remove('show');
-        });
-    }
-
-    // Auto-refresh prices
-    setInterval(updateCryptoPrices, 30000);
-}
-

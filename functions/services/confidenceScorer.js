@@ -103,7 +103,7 @@ class ConfidenceScorer {
             passed: true,
             grade: confidence >= 90 ? 'A+' : confidence >= 85 ? 'A' : 'B+',
             breakdown,
-            recommendation: 'BUY'
+            recommendation: confidence >= 80 ? 'STRONG BUY' : 'BUY'
         };
     }
 
@@ -166,7 +166,7 @@ class ConfidenceScorer {
             passed: true,
             grade: confidence >= 90 ? 'A+' : confidence >= 85 ? 'A' : 'B+',
             breakdown,
-            recommendation: 'SELL'
+            recommendation: confidence >= 80 ? 'STRONG SELL' : 'SELL'
         };
     }
 }
