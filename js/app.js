@@ -265,6 +265,23 @@ window.analyzeAsset = async function (symbol) {
         // Render Result
         renderAnalysisReport(data);
 
+        // UPDATE WATCHLIST CARD TO MATCH ANALYSIS
+        // Find asset in local state
+        const asset = watchlistData.find(a => a.symbol === symbol);
+        if (asset) {
+            asset.status = data.recommendation; // Use the Deep Analysis Status
+            asset.conf = `Score: ${data.score}`;
+            asset.price = `${data.currentPrice} ${data.currency}`;
+            asset.change = data.change24h;
+            asset.isUp = !data.change24h.includes('-');
+
+            // Mark as Analyzed so real-time updates don't overwrite the Status immediately
+            asset.analyzed = true;
+            asset.lastAnalysis = Date.now();
+
+            renderWatchlist(); // Refresh UI
+        }
+
     } catch (e) {
         console.error("Analysis Error:", e);
         content.innerHTML = `<div style="color:red; text-align:center; padding:20px;">
@@ -441,10 +458,16 @@ function updateAssetDataInMemory(symbol, price, changePercent) {
             const isUp = changePercent >= 0;
             asset.isUp = isUp;
             asset.change = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
-            // Standardized Logic for Crypto too
-            const rec = getRecommendationFromChange(changePercent);
-            asset.status = rec.status;
-            asset.conf = rec.label;
+
+            // Only update recommendation if NOT analyzed recently (e.g. within 1 hour)
+            const isAnalyzedRecently = asset.analyzed && (Date.now() - (asset.lastAnalysis || 0) < 3600000);
+
+            if (!isAnalyzedRecently) {
+                // Standardized Logic
+                const rec = getRecommendationFromChange(changePercent);
+                asset.status = rec.status;
+                asset.conf = rec.label;
+            }
             found = true;
         }
     });
