@@ -274,8 +274,9 @@ window.analyzeAsset = async function (symbol) {
 
         if (asset) {
             // Mark as Analyzed and Store Analysis Data for Persistence
+            const now = Date.now();
             asset.analyzed = true;
-            asset.lastAnalysis = Date.now();
+            asset.lastAnalysis = now;
             asset.analysisData = {
                 status: data.recommendation,
                 conf: `Score: ${data.score}/100`,
@@ -290,6 +291,19 @@ window.analyzeAsset = async function (symbol) {
             asset.price = asset.analysisData.price;
             asset.change = asset.analysisData.change;
             asset.isUp = asset.analysisData.isUp;
+
+            // PERSIST TO FIRESTORE
+            if (db && USER_ID && asset.id) {
+                db.collection('users').doc(USER_ID).collection('watchlist').doc(asset.id).update({
+                    status: asset.status,
+                    conf: asset.conf,
+                    price: asset.price,
+                    change: asset.change,
+                    isUp: asset.isUp,
+                    lastAnalysis: now,
+                    analysisData: asset.analysisData
+                }).catch(err => console.error(`[Analysis] Persistence failed:`, err));
+            }
 
             console.log(`[Analysis] Updated Asset Object:`, asset);
             renderWatchlist();
