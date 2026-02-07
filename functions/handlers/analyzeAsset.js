@@ -1,4 +1,27 @@
-const yahooFinance = require('yahoo-finance2').default;
+const pkg = require('yahoo-finance2');
+let yahooFinance;
+
+// Robust initialization for yahoo-finance2 (v2 vs v3)
+if (pkg.default) {
+    if (typeof pkg.default === 'function') {
+        try { yahooFinance = new pkg.default(); } catch (e) { yahooFinance = pkg.default; }
+    } else {
+        yahooFinance = pkg.default;
+    }
+} else {
+    // No default export
+    if (typeof pkg === 'function') {
+        try { yahooFinance = new pkg(); } catch (e) { yahooFinance = pkg; }
+    } else {
+        yahooFinance = pkg;
+    }
+}
+
+// Suppress notices if supported
+if (yahooFinance && typeof yahooFinance.suppressNotices === 'function') {
+    yahooFinance.suppressNotices(['yahooSurvey', 'nonsensical']);
+}
+
 const { RSI, MACD, BollingerBands } = require('technicalindicators');
 const { generateAIAnalysis } = require('../utils/aiAnalyzer');
 

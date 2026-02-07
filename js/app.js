@@ -1,4 +1,4 @@
-// ---------------------------------------------------------
+
 // FIREBASE CONFIGURATION
 // ---------------------------------------------------------
 // ⚠️ REPLACE WITH YOUR FIREBASE CONFIG FROM CONSOLE
@@ -149,7 +149,7 @@ function renderWatchlist() {
         return `
         <div class="asset-card">
             <div class="delete-btn" onclick="event.stopPropagation(); deleteAssetFromDb('${asset.id}')" style="position:absolute; top:10px; right:10px; color:#ff4d4d; cursor:pointer; z-index:10;"><i class="fa-solid fa-xmark"></i></div>
-            <div class="card-clickable" onclick="openChart('${asset.symbol}')" style="cursor:pointer;">
+            <div class="card-clickable" style="cursor:default;">
                 <div class="asset-header">
                     <div class="asset-icon">
                         <i class="${icon}"></i>
@@ -238,56 +238,7 @@ function getRecommendationFromChange(changePercent) {
     return { status: 'NEUTRAL', label: '' };
 }
 
-window.openChart = function (symbol) {
-    console.log('Opening chart for:', symbol);
-    const chartNav = document.querySelector('.nav-item[data-target="chart"]');
-    if (chartNav) updateNavigation(chartNav);
 
-    // TradingView Symbol Formatting
-    let tvSymbol = symbol;
-    const crypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA', 'USDT'];
-    const usStocks = ['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'NFLX', 'NVDA', 'AMD', 'INTC'];
-
-    // Check custom prefixes or defaults
-    if (symbol.includes(':')) {
-        tvSymbol = symbol;
-    } else {
-        if (crypto.includes(symbol)) {
-            tvSymbol = `BINANCE:${symbol}USDT`;
-        } else if (usStocks.includes(symbol)) {
-            tvSymbol = `NASDAQ:${symbol}`;
-        } else {
-            // Default assumption: If not Crypto/US Tech, assumes Thai Stock (SET)
-            tvSymbol = `BKK:${symbol}`;
-        }
-    }
-
-    // Initialize Widget
-    if (typeof TradingView !== 'undefined') {
-        document.getElementById('tradingview_widget').innerHTML = ''; // Clear old
-        new TradingView.widget({
-            "autosize": true,
-            "symbol": tvSymbol,
-            "interval": "D",
-            "timezone": "Asia/Bangkok",
-            "theme": "dark",
-            "style": "1",
-            "locale": "en",
-            "toolbar_bg": "#f1f3f6",
-            "enable_publishing": false,
-            "allow_symbol_change": true,
-            "container_id": "tradingview_widget",
-            "hide_side_toolbar": false,
-            "studies": [
-                "RSI@tv-basicstudies",
-                "MACD@tv-basicstudies"
-            ]
-        });
-    } else {
-        console.error('TradingView library not loaded');
-        document.getElementById('tradingview_widget').innerHTML = '<div style="color:white;text-align:center;padding:50px;">TradingView Library Error. Refresh Page.</div>';
-    }
-}
 
 // New: Analysis Function
 window.analyzeAsset = async function (symbol) {

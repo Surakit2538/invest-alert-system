@@ -30,8 +30,6 @@
             <ul class="nav-links">
                 <li class="active nav-item" data-target="dashboard"><a href="#"><i class="fa-solid fa-house"></i>
                         Dashboard</a></li>
-                <li class="nav-item" data-target="chart"><a href="#"><i class="fa-solid fa-chart-candlestick"></i>
-                        Chart</a></li>
                 <li class="nav-item" data-target="watchlist"><a href="#"><i class="fa-solid fa-list-check"></i>
                         Watchlist</a></li>
                 <li class="nav-item" data-target="signals"><a href="#"><i class="fa-solid fa-bell"></i> Signals</a></li>
@@ -122,14 +120,6 @@
                 </div>
             </div>
 
-            <!-- VIEW: CHART (TradingView) -->
-            <div id="view-chart" class="view-section" style="height: calc(100vh - 120px);">
-                <div class="glass-card" style="height:100%; padding:0; overflow:hidden;">
-                    <!-- TradingView Widget Container -->
-                    <div id="tradingview_widget" style="width:100%; height:100%;"></div>
-                </div>
-            </div>
-
             <!-- VIEW: WATCHLIST (Moved here to be toggleable) -->
             <div id="view-watchlist" class="view-section">
                 <section class="watchlist-section">
@@ -200,10 +190,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-    <!-- TradingView Widget -->
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <!-- Removed TradingView Widget Script -->
 
-    <script src="js/app.js?v=3"></script>
+    <script src="js/app.js?v=4"></script>
 </body>
 
 </html>
