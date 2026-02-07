@@ -42,48 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('watchlistContainer').innerHTML = '<div style="color:red;padding:20px;">Firebase Config Required in app.js</div>';
     }
 
-    if (typeof setupEventListeners === 'function') {
-        setupEventListeners();
-    } else {
-        console.warn('setupEventListeners function is missing. Initializing basic events.');
-        // Initializing basic events as fallback
-        const addBtn = document.getElementById('addAssetBtn');
-        const navItems = document.querySelectorAll('.nav-item');
+    setupEventListeners();
 
-        // Add Asset Modal Logic
-        if (addBtn) addBtn.addEventListener('click', () => {
-            document.getElementById('addAssetModal').classList.add('show');
-            setTimeout(() => document.getElementById('assetSymbol').focus(), 100);
-        });
-
-        // Navigation
-        navItems.forEach(item => {
-            item.addEventListener('click', (e) => {
-                e.preventDefault();
-                updateNavigation(item);
-            });
-        });
-
-        // Asset Add Confirmation
-        const confirmBtn = document.getElementById('confirmAddBtn');
-        if (confirmBtn) {
-            confirmBtn.addEventListener('click', async () => {
-                const input = document.getElementById('assetSymbol');
-                const symbol = input.value.toUpperCase();
-                if (!symbol) return;
-
-                confirmBtn.innerText = 'Saving...';
-                await addAssetToDb(symbol, 'Technical');
-
-                confirmBtn.innerText = 'Add Asset';
-                input.value = '';
-                document.getElementById('addAssetModal').classList.remove('show');
-            });
-        }
-
-        // Auto-refresh prices
-        setInterval(updateCryptoPrices, 30000);
-    }
 
     simulateClick('dashboard');
 });
