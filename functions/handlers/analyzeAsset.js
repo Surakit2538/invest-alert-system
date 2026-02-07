@@ -162,7 +162,15 @@ async function execute(symbol) {
             recommendation: "ERROR",
             score: 0,
             summary: "ไม่สามารถดึงข้อมูลได้ในขณะนี้ (" + e.message + ")",
-            analysis: { technical: {}, fundamental: {}, sentiment: {} },
+            currentPrice: "---",
+            currency: "",
+            change24h: "0.00%",
+            analysis: {
+                technical: { rsi: 50, signal: "N/A", macd: "N/A" },
+                fundamental: { pe: "N/A", volume: "N/A" },
+                sentiment: { score: 50, status: "Neutral", summary: "Data Unavailable" }
+            },
+            riskWarning: "System Error: " + e.message,
             sources: []
         };
     }

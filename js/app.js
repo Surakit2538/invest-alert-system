@@ -330,23 +330,26 @@ function renderAnalysisReport(data) {
     title.innerText = `${data.symbol} Parallel Analysis`;
 
     // Determine Color based on recommendation
+    const rec = data.recommendation || 'NEUTRAL';
     let colorClass = 'neutral';
-    if (data.recommendation.includes('BUY')) colorClass = 'buy';
-    if (data.recommendation.includes('SELL')) colorClass = 'sell';
+    if (rec.includes('BUY')) colorClass = 'buy';
+    else if (rec.includes('SELL')) colorClass = 'sell';
 
     // Format Sources
-    const sources = data.sources.join(', ');
+    const sources = (data.sources || []).join(', ');
+    const changeText = data.change24h || '0%';
+    const isDown = changeText.includes('-');
 
     const html = `
         <div class="analysis-header">
             <div class="main-rec ${colorClass}">
-                <span class="rec-label">${data.recommendation}</span>
-                <span class="rec-score">Score: ${data.score}/100</span>
+                <span class="rec-label">${rec}</span>
+                <span class="rec-score">Score: ${data.score || 0}/100</span>
             </div>
             <div class="price-info">
-                <h2>${data.currentPrice} <span class="currency">${data.currency}</span></h2>
-                <span class="change-badge ${data.change24h.includes('-') ? 'down' : 'up'}">
-                    ${data.change24h}
+                <h2>${data.currentPrice || '---'} <span class="currency">${data.currency || ''}</span></h2>
+                <span class="change-badge ${isDown ? 'down' : 'up'}">
+                    ${changeText}
                 </span>
             </div>
         </div>
