@@ -269,15 +269,23 @@ window.analyzeAsset = async function (symbol) {
         // Find asset in local state
         const asset = watchlistData.find(a => a.symbol === symbol);
         if (asset) {
-            asset.status = data.recommendation; // Use the Deep Analysis Status
-            asset.conf = `Score: ${data.score}`;
-            asset.price = `${data.currentPrice} ${data.currency}`;
-            asset.change = data.change24h;
-            asset.isUp = !data.change24h.includes('-');
-
-            // Mark as Analyzed so real-time updates don't overwrite the Status immediately
+            // Mark as Analyzed and Store Analysis Data for Persistence
             asset.analyzed = true;
             asset.lastAnalysis = Date.now();
+            asset.analysisData = {
+                status: data.recommendation,
+                conf: `Score: ${data.score}/100`, // format consistently
+                price: `${data.currentPrice} ${data.currency}`,
+                change: data.change24h,
+                isUp: !data.change24h.includes('-')
+            };
+
+            // Immediate Update
+            asset.status = asset.analysisData.status;
+            asset.conf = asset.analysisData.conf; // e.g. "Score: 58/100"
+            asset.price = asset.analysisData.price;
+            asset.change = asset.analysisData.change;
+            asset.isUp = asset.analysisData.isUp;
 
             renderWatchlist(); // Refresh UI
         }
@@ -454,16 +462,22 @@ function updateAssetDataInMemory(symbol, price, changePercent) {
     let found = false;
     watchlistData.forEach(asset => {
         if (asset.symbol === symbol) {
+            // 1. Always update live price first (Background update)
             asset.price = '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const isUp = changePercent >= 0;
             asset.isUp = isUp;
             asset.change = (isUp ? '+' : '') + changePercent.toFixed(2) + '%';
 
-            // Only update recommendation if NOT analyzed recently (e.g. within 1 hour)
-            const isAnalyzedRecently = asset.analyzed && (Date.now() - (asset.lastAnalysis || 0) < 3600000);
-
-            if (!isAnalyzedRecently) {
-                // Standardized Logic
+            // 2. BUT if Analyzed Recently, OVERWRITE with Analysis Snapshot to ensure consistency
+            if (asset.analyzed && asset.analysisData && (Date.now() - (asset.lastAnalysis || 0) < 3600000)) {
+                // Force sync with Analysis Report
+                asset.status = asset.analysisData.status;
+                asset.conf = asset.analysisData.conf;
+                asset.price = asset.analysisData.price;
+                asset.change = asset.analysisData.change;
+                asset.isUp = asset.analysisData.isUp;
+            } else {
+                // Standard Protocol
                 const rec = getRecommendationFromChange(changePercent);
                 asset.status = rec.status;
                 asset.conf = rec.label;
