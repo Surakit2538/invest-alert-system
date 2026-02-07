@@ -507,10 +507,17 @@ function setupEventListeners() {
         setTimeout(() => document.getElementById('assetSymbol').focus(), 100);
     });
 
-    // Navigation
-    navItems.forEach(item => {
+
+
+    // Navigation (Robust)
+    document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
+            console.log('Nav Clicked:', item.dataset.target); // Debug
             e.preventDefault();
+            // Handle active class manually here too for immediate feedback
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            item.classList.add('active');
+
             updateNavigation(item);
         });
     });
