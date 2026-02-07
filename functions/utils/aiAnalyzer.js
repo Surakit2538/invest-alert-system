@@ -34,13 +34,17 @@ async function generateAIAnalysis(symbol, marketData) {
         - Type: ${marketData.type}
         
         Task:
-        1. Determine sentiment (Positive/Neutral/Negative) based on the price trend.
-        2. Identify 2 key technical reasons (e.g. momentum, psychological levels).
+        1. Determine Sentiment Score (0-100) based on trend and momentum.
+           - 0-39: Bearish (Negative)
+           - 40-59: Neutral
+           - 60-100: Bullish (Positive)
+        2. Identify 2 key technical/fundamental reasons.
         3. Provide a clear summary (max 2 sentences) in THAI Language.
         
         Return JSON ONLY:
         {
-          "sentiment": "Positive",
+          "score": 75,
+          "status": "Bullish",
           "reasons": ["Reason 1", "Reason 2"],
           "summaryTH": "ภาษาไทย..."
         }
@@ -66,18 +70,29 @@ function getMockAIAnalysis(symbol, data) {
     const isUp = data.changePercent >= 0;
     const strength = Math.abs(data.changePercent);
 
-    let sentiment = "Neutral";
-    if (strength > 1.5) sentiment = isUp ? "Positive" : "Negative";
+    let score = 50;
+    let status = "Neutral";
+
+    if (isUp) {
+        score = 50 + (strength * 5);
+        if (score > 100) score = 95;
+        if (score >= 60) status = "Bullish";
+    } else {
+        score = 50 - (strength * 5);
+        if (score < 0) score = 5;
+        if (score <= 39) status = "Bearish";
+    }
 
     return {
-        sentiment: sentiment,
+        score: Math.round(score),
+        status: status,
         reasons: [
             isUp ? "Strong short-term momentum" : "Selling pressure detected",
             `Price change of ${data.changePercent}% in 24h`
         ],
         summaryTH: isUp
-            ? `โมเมนตัมราคา ${symbol} กำลังปรับตัวขึ้นแข็งแกร่ง น่าจับตามอง`
-            : `ราคา ${symbol} มีการปรับฐานลง ควรระมัดระวังแรงขายระยะสั้น`
+            ? `โมเมนตัมราคา ${symbol} กำลังปรับตัวขึ้นแข็งแกร่ง (Mock Analysis)`
+            : `ราคา ${symbol} มีการปรับฐานลง ควรระมัดระวัง (Mock Analysis)`
     };
 }
 

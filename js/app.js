@@ -327,12 +327,12 @@ function renderAnalysisReport(data) {
     const title = document.getElementById('analysisTitle');
     const content = document.getElementById('analysisContent');
 
-    title.innerText = `${data.symbol} Analysis Report`;
+    title.innerText = `${data.symbol} Parallel Analysis`;
 
     // Determine Color based on recommendation
     let colorClass = 'neutral';
-    if (data.recommendation === 'BUY') colorClass = 'buy';
-    if (data.recommendation === 'SELL') colorClass = 'sell';
+    if (data.recommendation.includes('BUY')) colorClass = 'buy';
+    if (data.recommendation.includes('SELL')) colorClass = 'sell';
 
     // Format Sources
     const sources = data.sources.join(', ');
@@ -352,29 +352,36 @@ function renderAnalysisReport(data) {
         </div>
 
         <div class="analysis-summary glass-card" style="margin: 15px 0; background: rgba(255,255,255,0.05);">
-            <h3><i class="fa-solid fa-robot"></i> AI Summary</h3>
-            <p>${data.summary}</p>
+            <h3><i class="fa-solid fa-robot"></i> AI Executive Summary</h3>
+            <p>${data.analysis.sentiment.summary || data.summary}</p>
         </div>
 
-        <div class="analysis-grid">
+        <div class="analysis-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px;">
+            <!-- Stream 1: Technical -->
             <div class="metric-item">
-                <label>Momentum</label>
-                <div class="metric-val ${data.analysis.momentum.score === 'Positive' ? 'up' : 'down'}">
-                    ${data.analysis.momentum.score}
+                <label><i class="fa-solid fa-chart-line"></i> Technical</label>
+                <div class="metric-val ${data.analysis.technical.rsi < 30 ? 'up' : (data.analysis.technical.rsi > 70 ? 'down' : 'neutral')}">
+                    RSI: ${data.analysis.technical.rsi}
                 </div>
-                <small>${data.analysis.momentum.reason}</small>
+                <small>${data.analysis.technical.signal} | MACD: ${data.analysis.technical.macd}</small>
             </div>
+
+            <!-- Stream 2: Fundamental -->
             <div class="metric-item">
-                <label>AI Sentiment</label>
-                <div class="metric-val ${data.analysis.aiSentiment.score === 'Positive' ? 'up' : 'neutral'}">
-                    ${data.analysis.aiSentiment.score}
+                <label><i class="fa-solid fa-building"></i> Fundamental</label>
+                <div class="metric-val">
+                    P/E: ${data.analysis.fundamental.pe}
                 </div>
-                <small>${data.analysis.aiSentiment.reason}</small>
+                <small>Vol: ${data.analysis.fundamental.volume}</small>
             </div>
+
+            <!-- Stream 3: Sentiment -->
             <div class="metric-item">
-                <label>Confidence</label>
-                <div class="metric-val">${data.confidence}</div>
-                <small>Based on ${data.sources.length} sources</small>
+                <label><i class="fa-solid fa-comments"></i> Sentiment</label>
+                <div class="metric-val ${data.analysis.sentiment.status === 'Bullish' ? 'up' : (data.analysis.sentiment.status === 'Bearish' ? 'down' : 'neutral')}">
+                    ${data.analysis.sentiment.score}/100
+                </div>
+                <small>${data.analysis.sentiment.status}</small>
             </div>
         </div>
         

@@ -24,7 +24,8 @@
         "moment": "^2.29.4",
         "moment-timezone": "^0.5.40",
         "node-cron": "^3.0.2",
-        "technicalindicators": "^3.1.0"
+        "technicalindicators": "^3.1.0",
+        "yahoo-finance2": "^3.13.0"
     },
     "devDependencies": {
         "eslint": "^8.9.0",
