@@ -234,18 +234,44 @@ window.openChart = function (symbol) {
     const chartNav = document.querySelector('.nav-item[data-target="chart"]');
     if (chartNav) updateNavigation(chartNav);
 
-    // Update Google Finance Iframe
-    const iframe = document.getElementById('google-finance-frame');
-    if (iframe) {
-        let gSymbol = symbol;
-        const thaiStocks = ['PTT', 'KBANK', 'AOT', 'SCB', 'CPALL', 'ADVANC', 'DELTA', 'BDMS', 'GULF', 'EA', 'SCC', 'MINT'];
-        const crypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'];
+    // TradingView Symbol Formatting
+    let tvSymbol = symbol;
+    const thaiStocks = ['PTT', 'KBANK', 'AOT', 'SCB', 'CPALL', 'ADVANC', 'DELTA', 'BDMS', 'GULF', 'EA', 'SCC', 'MINT'];
+    const crypto = ['BTC', 'ETH', 'DOGE', 'BNB', 'SOL', 'XRP', 'ADA'];
 
-        if (thaiStocks.includes(symbol)) gSymbol = `${symbol}:BKK`;
-        else if (crypto.includes(symbol)) gSymbol = `${symbol}-USD`;
-        else gSymbol = `${symbol}:NASDAQ`;
+    // Check custom prefixes or defaults
+    if (symbol.includes(':')) {
+        tvSymbol = symbol;
+    } else {
+        if (thaiStocks.includes(symbol)) tvSymbol = `SET:${symbol}`;
+        else if (crypto.includes(symbol)) tvSymbol = `BINANCE:${symbol}USDT`;
+        else tvSymbol = `NASDAQ:${symbol}`; // Default fallback
+    }
 
-        iframe.src = `https://www.google.com/finance/quote/${gSymbol}?window=6M`;
+    // Initialize Widget
+    if (typeof TradingView !== 'undefined') {
+        document.getElementById('tradingview_widget').innerHTML = ''; // Clear old
+        new TradingView.widget({
+            "autosize": true,
+            "symbol": tvSymbol,
+            "interval": "D",
+            "timezone": "Asia/Bangkok",
+            "theme": "dark",
+            "style": "1",
+            "locale": "en",
+            "toolbar_bg": "#f1f3f6",
+            "enable_publishing": false,
+            "allow_symbol_change": true,
+            "container_id": "tradingview_widget",
+            "hide_side_toolbar": false,
+            "studies": [
+                "RSI@tv-basicstudies",
+                "MACD@tv-basicstudies"
+            ]
+        });
+    } else {
+        console.error('TradingView library not loaded');
+        document.getElementById('tradingview_widget').innerHTML = '<div style="color:white;text-align:center;padding:50px;">TradingView Library Error. Refresh Page.</div>';
     }
 }
 
