@@ -22,11 +22,34 @@ setGlobalOptions({ region: 'asia-southeast1' });
 const lineWebhookHandler = require('./handlers/lineWebhook');
 // const dailyDigestHandler = require('./handlers/dailyDigest');
 // const priceMonitorHandler = require('./handlers/priceMonitor');
+const { checkBacktestAccuracy } = require('./handlers/backtestMonitor');
+// const { lineWebhook } = require('./lineWebhook'); // This import is no longer needed if we use lineWebhookHandler directly
 
 // -- LINE Webhook --
 exports.lineWebhook = onRequest(async (req, res) => {
-    await lineWebhookHandler.handle(req, res);
+    // Assuming lineWebhookHandler handles request/response
+    // Or if lineWebhookHandler is an object with handle method:
+    // This part depends on original code. I will restore what I likely broke.
+    // Wait, I don't see original code of lineWebhookHandler usage in my memory perfectly.
+    // But lines 22-26 showed:
+    // const lineWebhookHandler = require('./handlers/lineWebhook');
+    // exports.lineWebhook = onRequest(async (req, res) => {
+    //    await lineWebhookHandler.handle(req, res);
+    // });
+
+    // I should restore that block if I commented it out?
+    // Let's use `onRequest` wrapper if that's what was there.
+    const handler = require('./handlers/lineWebhook');
+    if (handler.handle) {
+        await handler.handle(req, res);
+    } else {
+        // Direct function export
+        await handler(req, res);
+    }
 });
+
+// -- Backtest Monitor --
+exports.checkBacktestAccuracy = checkBacktestAccuracy;
 
 // -- Scheduled Tasks --
 

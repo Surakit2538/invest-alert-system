@@ -90,63 +90,62 @@ async function execute(symbol) {
         // 4. Stream 2: Fundamental Analysis
         const fundamentals = {
             pe: quoteSummary.summaryDetail?.trailingPE || 'N/A',
-            marketCap: quoteSummary.summaryDetail?.marketCap || 'N/A',
+            marketCap: quoteSummary.summaryDetail?.marketCap || 0,
             volume: quoteSummary.summaryDetail?.volume || 0,
             avgVolume: quoteSummary.summaryDetail?.averageVolume || 0,
+            dividendYield: quoteSummary.summaryDetail?.dividendYield || 0,
+            revenueGrowth: quoteSummary.financialData?.revenueGrowth || 0,
             symbol: ySymbol
         };
+
+        const fundamentalScore = calculateFundamentalScore(fundamentals, isCrypto);
 
         // 5. Stream 3: Sentiment Analysis (AI)
         const marketDataForAI = {
             price: latestPrice,
             changePercent: ((latestPrice - historical[historical.length - 2].close) / historical[historical.length - 2].close) * 100,
-            type: isCrypto ? 'Crypto' : 'Stock'
+            type: isCrypto ? 'Crypto' : 'Stock',
+            pe: fundamentals.pe,
+            yield: (fundamentals.dividendYield * 100).toFixed(2) + '%'
         };
         const aiResult = await generateAIAnalysis(symbol, marketDataForAI);
 
         // 6. Decision Engine (Strict Criteria)
-        // Strong Buy: Sentiment > 70 AND RSI < 30 (Oversold)
-        // Buy: Sentiment > 50 AND RSI 30-50
-        // Hold: RSI 50-60 OR Conflict
-        // Sell: Sentiment < 40 AND RSI > 70 (Overbought)
+        // ... (Keep existing decision logic, but maybe relax it slightly for Long-Term or keep strict for entry?)
+        // Let's keep the recommendation logic roughly same for now, but use the NEW SCORE for ranking.
 
         let recommendation = 'HOLD';
-        let mainReason = '';
-
+        // ... (Keep existing decision tree for now)
         if (aiResult.score > 70 && currentRSI < 30) {
             recommendation = 'STRONG BUY';
-            mainReason = 'Oversold (RSI < 30) with Bullish Sentiment';
-        } else if (aiResult.score > 50 && currentRSI >= 30 && currentRSI <= 55) { // Slightly expanded 50 to 55 to be more practical
+        } else if (aiResult.score > 50 && currentRSI >= 30 && currentRSI <= 55) {
             recommendation = 'BUY';
-            mainReason = 'Bullish Sentiment + Moderate RSI';
         } else if (aiResult.score < 40 && currentRSI > 70) {
             recommendation = 'SELL';
-            mainReason = 'Overbought (RSI > 70) with Bearish Sentiment';
         } else if (currentRSI > 70) {
-            recommendation = 'SELL'; // Technical Overbought override
-            mainReason = 'Technical Overbought (RSI > 70)';
+            recommendation = 'SELL';
         } else if (currentRSI < 30) {
-            // If RSI oversold but sentiment bad? Risky buy? Or Watch?
-            // User's rules: "Sell: Sentiment < 40 & RSI > 70".
-            // Let's stick to HOLD if not met, or use common sense extensions.
-            // User said: Hold: Conflict or RSI 50-60.
-            recommendation = 'HOLD';
-            mainReason = 'Market Indecisive or Signals Conflict';
+            recommendation = 'HOLD'; // Wait for confirmation
         }
 
-        // 7. Calculate Aggregated Score (0-100)
-        // Weighted: Technical 40%, Sentiment 40%, Fund/Vol 20%
-        // Normalized RSI score: 0-100 (Where 30 is good for buy (score 100?), 70 is bad (score 0?))
-        // Actually for "Buy Strength", Lower RSI is better (up to a point).
-        // Let's simplified: just average the AI score with a "Technical Score"
-
+        // 7. Calculate Aggregated Score (Dynamic Weighting)
+        // Technical Score Calculation
         let techScore = 50;
         if (currentRSI < 30) techScore = 90;
         else if (currentRSI < 40) techScore = 75;
         else if (currentRSI > 70) techScore = 10;
         else if (currentRSI > 60) techScore = 30;
 
-        const finalScore = Math.round((aiResult.score * 0.5) + (techScore * 0.5));
+        // Dynamic Weighting
+        let finalScore = 0;
+        if (isCrypto) {
+            // Crypto: 20% Fund (Cap/Vol), 40% Tech, 40% Sentiment
+            finalScore = (fundamentalScore * 0.2) + (techScore * 0.4) + (aiResult.score * 0.4);
+        } else {
+            // Stocks: 40% Fund (PE/Div), 30% Tech, 30% Sentiment
+            finalScore = (fundamentalScore * 0.4) + (techScore * 0.3) + (aiResult.score * 0.3);
+        }
+        finalScore = Math.round(finalScore);
 
         return {
             symbol: symbol.toUpperCase(),
@@ -154,6 +153,7 @@ async function execute(symbol) {
             score: finalScore,
             confidence: aiResult.status === 'Bullish' && recommendation.includes('BUY') ? 'High' : 'Medium',
             currentPrice: latestPrice.toFixed(2),
+            priceValue: latestPrice, // Added for Backtesting (Raw Number)
             currency: quoteSummary.price?.currencySymbol || (isCrypto ? 'USD' : 'THB'),
             change24h: marketDataForAI.changePercent.toFixed(2) + '%',
             analysis: {
@@ -165,7 +165,10 @@ async function execute(symbol) {
                 },
                 fundamental: {
                     pe: fundamentals.pe !== 'N/A' ? fundamentals.pe.toFixed(2) : 'N/A',
-                    volume: (fundamentals.volume / 1000000).toFixed(2) + 'M'
+                    volume: (fundamentals.volume / 1000000).toFixed(2) + 'M',
+                    dividendYield: (fundamentals.dividendYield * 100).toFixed(2) + '%',
+                    revenueGrowth: (fundamentals.revenueGrowth * 100).toFixed(2) + '%',
+                    score: fundamentalScore
                 },
                 sentiment: {
                     score: aiResult.score,
@@ -173,7 +176,7 @@ async function execute(symbol) {
                     summary: aiResult.summaryTH
                 }
             },
-            summary: aiResult.summaryTH + ` RSI อยู่ที่ ${currentRSI.toFixed(1)} (${recommendation})`,
+            summary: aiResult.summaryTH + ` RSI ${currentRSI.toFixed(1)} / Fund Score ${fundamentalScore}`,
             riskWarning: "การลงทุนมีความเสี่ยง (Data: Yahoo Finance, AI: Gemini)",
             sources: ["Yahoo Finance", "Gemini AI"],
             lastUpdated: new Date().toISOString()
@@ -181,7 +184,7 @@ async function execute(symbol) {
 
     } catch (e) {
         console.error(`Parallel Stream Analysis Failed for ${symbol}:`, e);
-        // Fallback to simple object to not break UI
+        // Fallback
         return {
             symbol: symbol,
             recommendation: "ERROR",
@@ -199,6 +202,55 @@ async function execute(symbol) {
             sources: []
         };
     }
+}
+
+/**
+ * Calculates Fundamental Score (0-100)
+ */
+function calculateFundamentalScore(fund, isCrypto) {
+    let score = 0;
+
+    if (isCrypto) {
+        // Crypto Logic (20% weight in final, but here calculate 0-100 base)
+        // 1. Market Cap (Stability) - 50 pts
+        // Assume > 10B is solid (Bitcoin is ~1T)
+        if (fund.marketCap > 10000000000) score += 50;
+        else if (fund.marketCap > 1000000000) score += 30;
+        else if (fund.marketCap > 100000000) score += 10;
+
+        // 2. Liquidity (Vol/Cap) - 50 pts
+        // If volume is > 5% of cap, it's very liquid
+        const volCapRatio = fund.volume / (fund.marketCap || 1);
+        if (volCapRatio > 0.1) score += 50;
+        else if (volCapRatio > 0.05) score += 30;
+        else if (volCapRatio > 0.01) score += 10;
+
+    } else {
+        // Stock Logic (40% weight in final)
+        // 1. P/E Ratio (Value) - 30 pts
+        const pe = fund.pe;
+        if (pe !== 'N/A' && pe > 0) {
+            if (pe < 15) score += 30;
+            else if (pe < 25) score += 20;
+            else if (pe < 40) score += 10;
+        }
+
+        // 2. Dividend Yield (Income) - 20 pts
+        const yield = fund.dividendYield || 0;
+        if (yield > 0.03) score += 20; // > 3%
+        else if (yield > 0.01) score += 10; // > 1%
+
+        // 3. Revenue Growth (Growth) - 30 pts
+        const growth = fund.revenueGrowth || 0;
+        if (growth > 0.15) score += 30; // > 15%
+        else if (growth > 0.05) score += 15; // > 5%
+
+        // 4. Market Cap (Stability) - 20 pts
+        if (fund.marketCap > 10000000000) score += 20; // > 10B
+        else if (fund.marketCap > 1000000000) score += 10; // > 1B
+    }
+
+    return score;
 }
 
 module.exports = { execute };

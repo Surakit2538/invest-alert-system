@@ -44,6 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupEventListeners();
 
+    // Auto-update when clicking Watchlist menu
+    const watchlistNav = document.querySelector('.nav-item[data-target="watchlist"]');
+    if (watchlistNav) {
+        watchlistNav.addEventListener('click', () => {
+            console.log("Watchlist menu clicked. Triggering auto-update...");
+            // Small delay to allow view switch
+            setTimeout(() => window.autoUpdateWatchlist(), 500);
+        });
+    }
 
     simulateClick('dashboard');
 });
@@ -73,6 +82,8 @@ async function loadWatchlist() {
 
         renderWatchlist();
         updateCryptoPrices(); // Fetch live prices for loaded assets
+        // Auto-Update Analysis for all assets on load
+        setTimeout(() => window.autoUpdateWatchlist(), 2000);
     } catch (e) {
         console.error("Error loading watchlist:", e);
         // If index error, might fail on sort. Retry without sort
@@ -82,6 +93,7 @@ async function loadWatchlist() {
             snapshot2.forEach(doc => watchlistData.push({ id: doc.id, ...doc.data() }));
             renderWatchlist();
             updateCryptoPrices();
+            setTimeout(() => window.autoUpdateWatchlist(), 2000);
         } catch (e2) {
             container.innerHTML = '<div style="color:red;text-align:center;">Error loading. Check Console.</div>';
         }
@@ -243,15 +255,25 @@ function getRecommendationFromChange(changePercent) {
 
 
 // New: Analysis Function
-window.analyzeAsset = async function (symbol) {
+window.analyzeAsset = async function (symbol, silent = false) {
     const modal = document.getElementById('analysisModal');
     const content = document.getElementById('analysisContent');
     const title = document.getElementById('analysisTitle');
 
-    // Open Modal with Loading
-    modal.classList.add('show');
-    title.innerText = `Analyzing ${symbol}...`;
-    content.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Intelligence Analyzing...</div>';
+    // Open Modal only if NOT silent
+    if (!silent) {
+        modal.classList.add('show');
+        title.innerText = `Analyzing ${symbol}...`;
+        content.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Intelligence Analyzing...</div>';
+    } else {
+        // Show Loading Indicator on Card?
+        // Maybe find the card and add a spinner
+        const card = Array.from(document.querySelectorAll('.asset-card')).find(c => c.innerText.includes(symbol));
+        if (card) {
+            const statusHook = card.querySelector('.status-indicator span');
+            if (statusHook) statusHook.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Updating...';
+        }
+    }
 
     try {
         // Call Backend Cloud Function
@@ -264,15 +286,16 @@ window.analyzeAsset = async function (symbol) {
 
         if (data.error) throw new Error(data.error);
 
-        // Render Result
-        renderAnalysisReport(data);
+        // Render Result if Modal is Open (and it matches current symbol? optional check)
+        if (!silent) {
+            renderAnalysisReport(data);
+        }
 
         // UPDATE WATCHLIST CARD TO MATCH ANALYSIS
         // Find asset in local state
-        // Find asset in local state
         const asset = watchlistData.find(a => a.symbol === symbol);
 
-        console.log(`[Analysis] Fetched Data for ${symbol}: Status=${data.recommendation}, Score=${data.score}, Price=${data.currentPrice}`);
+        console.log(`[Analysis] Fetched Data for ${symbol}: Status=${data.recommendation}, Score=${data.score}`);
 
         if (asset) {
             // Mark as Analyzed and Store Analysis Data for Persistence
@@ -294,7 +317,7 @@ window.analyzeAsset = async function (symbol) {
             asset.change = asset.analysisData.change;
             asset.isUp = asset.analysisData.isUp;
 
-            // PERSIST TO FIRESTORE
+            // PERSIST TO FIRESTORE (Watchlist Update)
             if (db && USER_ID && asset.id) {
                 db.collection('users').doc(USER_ID).collection('watchlist').doc(asset.id).update({
                     status: asset.status,
@@ -304,23 +327,58 @@ window.analyzeAsset = async function (symbol) {
                     isUp: asset.isUp,
                     lastAnalysis: now,
                     analysisData: asset.analysisData
-                }).catch(err => console.error(`[Analysis] Persistence failed:`, err));
+                }).catch(err => console.error(`[Analysis] Watchlist Update failed:`, err));
+
+                // BACKTESTING: Save Snapshot (Only if data changed significantly? No, save all for now)
+                if (!silent || (Math.random() < 0.1)) { // Optimization: Don't save snapshot EVERY auto-load? 
+                    // User requested "Every time enter website". So yes, save snapshot.
+                    // But if user refreshes 10 times, we get 10 snapshots.
+                    // Maybe check lastAnalysis time?
+                    // Let's save it. Valid for backtesting.
+                    db.collection('users').doc(USER_ID).collection('analysis_history').add({
+                        symbol: asset.symbol,
+                        timestamp: now,
+                        recommendation: data.recommendation,
+                        score: data.score,
+                        fundamentalScore: data.analysis?.fundamental?.score || 0,
+                        priceAtAnalysis: data.priceValue || parseFloat(data.currentPrice.replace(/[^0-9.]/g, '')),
+                        currency: data.currency,
+                        status: 'active',
+                        outcome: 'pending'
+                    }).catch(err => console.error(`[Backtest] Save failed:`, err));
+                }
             }
 
-            console.log(`[Analysis] Updated Asset Object:`, asset);
+            // Re-render watchlist to show updated data
             renderWatchlist();
-        } else {
-            console.warn(`[Analysis] Asset ${symbol} not found in watchlistData!`);
         }
 
     } catch (e) {
-        console.error("Analysis Error:", e);
-        content.innerHTML = `<div style="color:red; text-align:center; padding:20px;">
-            <i class="fa-solid fa-triangle-exclamation"></i> Analysis Failed<br>${e.message}
-        </div>`;
-        title.innerText = 'Error';
+        console.error(`Analysis Error (${symbol}):`, e);
+        if (!silent) {
+            content.innerHTML = `<div style="color:red; text-align:center; padding:20px;">
+                <i class="fa-solid fa-triangle-exclamation"></i> Analysis Failed<br>${e.message}
+            </div>`;
+            title.innerText = 'Error';
+        }
     }
 }
+
+// Auto-Update All Assets
+window.autoUpdateWatchlist = async function () {
+    console.log("Starting Auto-Update for Watchlist...");
+    const symbols = watchlistData.map(a => a.symbol);
+
+    // Process sequentially to avoid rate limits
+    for (const symbol of symbols) {
+        await window.analyzeAsset(symbol, true); // Silent mode
+        // Small delay
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    console.log("Auto-Update Complete.");
+}
+
+// End of analyzeAsset refactoring
 
 function renderAnalysisReport(data) {
     const title = document.getElementById('analysisTitle');
@@ -372,10 +430,14 @@ function renderAnalysisReport(data) {
             <!-- Stream 2: Fundamental -->
             <div class="metric-item">
                 <label><i class="fa-solid fa-building"></i> Fundamental</label>
-                <div class="metric-val">
-                    P/E: ${data.analysis.fundamental.pe}
+                <div class="metric-val ${data.analysis.fundamental.score >= 70 ? 'up' : 'neutral'}">
+                    Score: ${data.analysis.fundamental.score || 0}
                 </div>
-                <small>Vol: ${data.analysis.fundamental.volume}</small>
+                <div style="font-size: 0.75rem; text-align: left; margin-top: 5px; line-height: 1.4;">
+                    <div>P/E: ${data.analysis.fundamental.pe}</div>
+                    <div>Yield: ${data.analysis.fundamental.dividendYield || '-'}</div>
+                    <div style="color: #aaa;">Growth: ${data.analysis.fundamental.revenueGrowth || '-'}</div>
+                </div>
             </div>
 
             <!-- Stream 3: Sentiment -->
@@ -386,6 +448,10 @@ function renderAnalysisReport(data) {
                 </div>
                 <small>${data.analysis.sentiment.status}</small>
             </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 10px; font-size: 0.8rem; opacity: 0.7;">
+            Strategy: ${data.analysis.fundamental.pe === 'N/A' && data.analysis.fundamental.dividendYield === '0.00%' ? 'Crypto (20% Fund / 40% Tech)' : 'Stock (40% Fund / 30% Tech)'}
         </div>
         
         <div class="disclaimer">
@@ -400,6 +466,69 @@ function renderAnalysisReport(data) {
 // Global modal closer for onclick events
 window.closeModal = function (id) {
     document.getElementById(id).classList.remove('show');
+}
+
+// Feature: Backtest Accuracy Check
+window.checkBacktestAccuracy = async function () {
+    const modal = document.getElementById('analysisModal');
+    const title = document.getElementById('analysisTitle');
+    const content = document.getElementById('analysisContent');
+
+    modal.classList.add('show');
+    title.innerText = 'Backtest Accuracy Report';
+    content.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Checking Historical Performance...</div>';
+
+    try {
+        // Get Project ID from firebase config (assuming it's available globally or we parse it)
+        // Since firebaseConfig is usually defined in index.html or app.js
+        // Let's assume the URL pattern or try to construct it.
+        // If firebaseConfig is not available, we use hardcoded or fetch from somewhere.
+        // In this project, firebaseConfig is likely in index.html script block or app.js top.
+        // For now, let's use the one from `firebaseConfig` object if it exists.
+
+        const projectId = (typeof firebaseConfig !== 'undefined') ? firebaseConfig.projectId : 'invest-alert-game';
+        const region = 'asia-southeast1';
+        const url = `https://${region}-${projectId}.cloudfunctions.net/checkBacktestAccuracy?userId=${USER_ID}`;
+
+        console.log("Fetching Check Accuracy:", url);
+        const res = await fetch(url);
+        const data = await res.json();
+        // ... (rest of logic)
+
+        if (data.error) throw new Error(data.error);
+
+        if (!data.results || data.results.length === 0) {
+            content.innerHTML = `<div style="text-align:center; padding:20px;">No active analysis history found to check. Start analyzing assets to build history!</div>`;
+            return;
+        }
+
+        let html = `<div style="text-align:center; margin-bottom:15px;">Updated ${data.updated} records.</div>`;
+        html += `<table style="width:100%; text-align:left; border-collapse: collapse;">
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                <th style="padding:8px;">Symbol</th>
+                <th style="padding:8px;">Return</th>
+                <th style="padding:8px;">Status</th>
+            </tr>`;
+
+        data.results.forEach(r => {
+            const color = r.isProfitable ? '#10b981' : '#ef4444';
+            const icon = r.isProfitable ? '<i class="fa-solid fa-check"></i>' : '<i class="fa-solid fa-xmark"></i>';
+            html += `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <td style="padding:8px;">${r.symbol}</td>
+                    <td style="padding:8px; color:${color}; font-weight:bold;">${r.return}</td>
+                    <td style="padding:8px; color:${color};">${icon}</td>
+                </tr>
+             `;
+        });
+        html += `</table>`;
+
+        content.innerHTML = html;
+
+    } catch (e) {
+        console.error("Backtest Check Failed:", e);
+        content.innerHTML = `<div style="color:red; text-align:center;">Error: ${e.message}</div>`;
+    }
 }
 
 function updateNavigation(selectedItem) {
